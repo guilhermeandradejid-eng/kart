@@ -1,0 +1,12 @@
+# Godot
+.godot/
+*.tmp
+export_presets.cfg
+/build/
+# Python
+__pycache__/
+*.pyc
+# review renders
+tools/blender/out/
+tools/audio/out/
+tools/tests/out/
