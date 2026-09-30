@@ -193,7 +193,7 @@ def build_chassis(m):
         rails.append(C.cylinder(f"bearing{sx}", r=0.045, depth=0.06, loc=(sx * 0.34, REAR_Y, REF_REAR_R), rot=(0, 90, 0),
                                 mat=m["plastic"], bevel=0.01))
     # steering column
-    rails.append(C.tube("column", [(0, 0.66, 0.14), (0, 0.50, 0.30), (0, 0.33, 0.47)], radius=0.018, corner=0.05,
+    rails.append(C.tube("column", [(0, 0.62, 0.13), (0, 0.36, 0.28), (0, 0.18, 0.40)], radius=0.018, corner=0.05,
                         mat=m["chrome"]))
     frame = C.join(rails, "Frame")
     objs.append(frame)
@@ -204,8 +204,9 @@ def build_chassis(m):
                             materials=[m["plastic"]])
     objs.append(floor_ob)
     # pedals
-    for sx, col in ((-0.08, "plastic"), (0.08, "chrome")):
-        objs.append(C.box(f"pedal{sx}", size=(0.05, 0.02, 0.09), loc=(sx, 0.86, 0.13), rot=(-30, 0, 0), mat=m[col], bevel=0.008))
+    for sx, col in ((-0.085, "plastic"), (0.085, "chrome")):
+        objs.append(C.box(f"pedal{sx}", size=(0.05, 0.02, 0.09), loc=(sx, 0.20, 0.13), rot=(-30, 0, 0), mat=m[col], bevel=0.008))
+        objs.append(C.tube(f"pedalarm{sx}", [(sx, 0.2, 0.09), (sx, 0.21, 0.13)], radius=0.008, mat=m["metal"]))
 
     # bucket seat
     outer = S.Box((0.22, 0.20, 0.30), round=0.11).at(0, -0.18, 0.40)
@@ -223,9 +224,9 @@ def build_chassis(m):
     objs.append(seat_ob)
 
     # steering wheel (separate object, origin at its centre, normal along column)
-    col_dir = np.array([0, 0.33 - 0.50, 0.47 - 0.30])
+    col_dir = np.array([0, 0.18 - 0.36, 0.40 - 0.28])
     col_dir /= np.linalg.norm(col_dir)
-    wheel_c = np.array([0, 0.30, 0.50])
+    wheel_c = np.array([0, 0.15, 0.43])
     rimT = S.Torus(0.13, 0.018)
     spokes = S.Union(S.Capsule((0, 0, -0.01), (0.12, 0, 0.0), 0.014), S.Capsule((0, 0, -0.01), (-0.12, 0, 0.0), 0.014),
                      S.Capsule((0, 0, -0.01), (0, -0.12, 0.0), 0.014))
@@ -253,8 +254,7 @@ def build_chassis(m):
         C.empty("socket_wheel_rl", (-REAR_X, REAR_Y, REF_REAR_R)),
         C.empty("socket_wheel_rr", (REAR_X, REAR_Y, REF_REAR_R)),
         C.empty("socket_driver", (0, -0.14, 0.20)),
-        C.empty("socket_hand_l", (-0.13, 0.30, 0.50)),
-        C.empty("socket_hand_r", (0.13, 0.30, 0.50)),
+        C.empty("socket_steering", (0, 0.15, 0.43)),
         C.empty("socket_camera", (0, -0.6, 0.9)),
     ]
     return objs, sockets
@@ -279,8 +279,8 @@ def body_classic(m):
     objs.append(C.sdf_object("Nose", nose, (-0.6, 0.2, 0.0), (0.6, 1.25, 0.6), voxel=0.006, target_faces=14000,
                              materials=[m["paint"]]))
     pod = S.Union(
-        S.Box((0.085, 0.38, 0.095), round=0.075).at(0.43, 0.02, 0.20),
-        S.Box((0.06, 0.2, 0.05), round=0.045).at(0.43, 0.30, 0.25),
+        S.Box((0.095, 0.37, 0.11), round=0.055).at(0.43, 0.02, 0.21),
+        S.Box((0.07, 0.16, 0.06), round=0.045).at(0.42, 0.28, 0.29),
         k=0.08).mirror_x()
     objs.append(C.sdf_object("SidePods", _flat_bottom(pod, 0.09), (-0.6, -0.5, 0.0), (0.6, 0.6, 0.4), voxel=0.006,
                              target_faces=9000, materials=[m["paint"]]))
@@ -362,10 +362,10 @@ BODIES = {"classic": body_classic, "bolt": body_bolt, "buggy": body_buggy}
 
 def wing_classic(m):
     blade = S.Union(
-        S.Box((0.56, 0.15, 0.032), round=0.03).rot(-12, 0, 0).at(0, -0.86, 0.86),
-        S.Box((0.02, 0.18, 0.10), round=0.018).at(0.56, -0.86, 0.84).mirror_x(),
+        S.Box((0.48, 0.14, 0.03), round=0.028).rot(-12, 0, 0).at(0, -0.88, 0.74),
+        S.Box((0.02, 0.17, 0.09), round=0.018).at(0.48, -0.88, 0.72).mirror_x(),
         k=0.02)
-    struts = S.Union(S.Capsule((0.22, -0.72, 0.22), (0.26, -0.86, 0.84), 0.022).mirror_x())
+    struts = S.Union(S.Capsule((0.20, -0.74, 0.20), (0.22, -0.88, 0.72), 0.022).mirror_x())
     return [
         C.sdf_object("Wing", blade, (-0.7, -1.1, 0.6), (0.7, -0.6, 1.05), voxel=0.004, target_faces=6000,
                      materials=[m["paint"]]),
@@ -412,7 +412,8 @@ def engine_single(m):
         S.Cylinder(0.075, 0.07, round=0.02).at(ex, -0.45, 0.43),
         k=0.02)
     fins = S.Union(*[S.Cylinder(0.095, 0.006, round=0.004).at(ex, -0.45, 0.39 + i * 0.022) for i in range(4)])
-    eng = S.Union(block, fins, k=0.005)
+    mount = S.Box((0.12, 0.12, 0.015), round=0.01).at(ex, -0.45, 0.19)
+    eng = S.Union(block, fins, mount, k=0.005)
     filt = S.Cylinder(0.06, 0.05, round=0.02).rot(0, 90, 0).at(ex - 0.16, -0.40, 0.36)
     objs = [
         C.sdf_object("Engine", eng, (0.1, -0.65, 0.15), (0.5, -0.25, 0.55), voxel=0.004, target_faces=8000,
@@ -536,3 +537,16 @@ def review(out_root, prefix, **kw):
     assemble(**kw)
     return R.turntable(prefix, target=(0, 0.1, 0.35), dist=3.6, views=((-40, 22), (40, 22), (160, 18), (90, 60)),
                        size=(560, 420), samples=24, radius=3.0)
+
+
+def review_variants(prefix):
+    from tt import render as R
+    sheets = []
+    for i, cfg in enumerate([dict(body="bolt", wing="twin", engine="twin", wheels="slick"),
+                             dict(body="buggy", wing="duck", engine="single", wheels="monster"),
+                             dict(body="classic", wing="classic", engine="twin", wheels="mini")]):
+        C.reset()
+        assemble(**cfg)
+        sheets.append(R.turntable(f"{prefix}_v{i}", target=(0, 0.1, 0.35), dist=3.6, views=((-40, 22), (160, 18)),
+                                  size=(480, 360), samples=20))
+    return sheets

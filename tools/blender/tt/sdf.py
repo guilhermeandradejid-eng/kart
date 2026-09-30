@@ -136,6 +136,9 @@ class Node:
     def mirror_x(self):
         return MirrorX(self)
 
+    def stretch(self, sx=1.0, sy=1.0, sz=1.0):
+        return Stretch(self, sx, sy, sz)
+
     def inflate(self, r):
         return Offset(self, r)
 
@@ -348,7 +351,7 @@ def box2d(px, py, hx, hy, r=0.0):
 def superellipse2d(px, py, a, b, n=4.0):
     """Approximate distance to a superellipse |x/a|^n + |y/b|^n = 1."""
     k = (np.abs(px / a) ** n + np.abs(py / b) ** n) ** (1.0 / n)
-    return (k - 1.0) * min(a, b)
+    return (k - 1.0) * np.minimum(a, b)
 
 
 class Revolved(Primitive):
@@ -437,6 +440,23 @@ class Transform(Node):
     def rot(self, rx=0.0, ry=0.0, rz=0.0):
         R = rot_matrix(rx, ry, rz)
         return Transform(self.child, R @ self.offset, R @ self.R, self.s)
+
+
+class Stretch(Node):
+    """Non-uniform scale about the local origin (approximate distance,
+    conservative: multiplied by the smallest factor). Flattens ears, scarves."""
+
+    def __init__(self, child, sx=1.0, sy=1.0, sz=1.0):
+        self.child = child
+        self.s = np.array([sx, sy, sz], float)
+        self.k = float(self.s.min())
+
+    def dist(self, p):
+        return self.child.dist(p / self.s) * self.k
+
+    def attrs(self, p):
+        d, m, c = self.child.attrs(p / self.s)
+        return d * self.k, m, c
 
 
 class MirrorX(Node):
