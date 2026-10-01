@@ -31,8 +31,11 @@ func _ready() -> void:
 			"kart": follow = int(kv[1])
 			"scale": scale = float(kv[1])
 			"warp": warp = float(kv[1])
+			"quality": Game.settings.quality = kv[1]
+			"fx": Game.set_meta("debug_fx", kv[1])
 			"nodecor": pass
 	Engine.time_scale = scale
+	Engine.max_physics_steps_per_frame = 90   # software rendering: advance the sim in big steps
 	var ps := load("res://scenes/race.tscn") as PackedScene
 	race = ps.instantiate()
 	race.autopilot_player = true

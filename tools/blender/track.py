@@ -227,18 +227,8 @@ class Track:
         n2 = S.fbm(P3 * np.array([1, 1, 0]), 1 / 45.0, 3, seed=9)
         sand_w = smoothstep(4.2, 2.4, Z + n2 * 0.8) * smoothstep(90, 50, Y)
         sand_w = np.maximum(sand_w, smoothstep(1.2, 0.2, Z))  # every shore is sandy
-        grass = np.array(S.hexrgb("#62b23a"))
-        grass2 = np.array(S.hexrgb("#8acc45"))
-        dark = np.array(S.hexrgb("#3f8f2c"))
-        sand = np.array(S.hexrgb("#f0d49a"))
-        wet = np.array(S.hexrgb("#c9a86c"))
-        dirt = np.array(S.hexrgb("#b07c4f"))
-        col = grass * (0.5 + 0.5 * n1[:, None]) + grass2 * (0.5 - 0.5 * n1[:, None])
-        col = col * (1 - smoothstep(0.1, 0.6, n2)[:, None]) + dark * smoothstep(0.1, 0.6, n2)[:, None]
-        sandc = sand * (1 - smoothstep(0.9, 0.1, Z)[:, None]) + wet * smoothstep(0.9, 0.1, Z)[:, None]
-        col = col * (1 - sand_w[:, None]) + sandc * sand_w[:, None]
-        shoulder = smoothstep(4.0, 0.5, edge) * (1 - sand_w) * (1 - free)
-        col = col * (1 - shoulder[:, None] * 0.8) + dirt * (shoulder[:, None] * 0.8)
+        shoulder = smoothstep(4.5, 0.5, edge) * (1 - sand_w) * (1 - free)
+        dirt_w = np.maximum(shoulder * 0.85, smoothstep(0.62, 0.8, n1) * smoothstep(0.35, 0.6, n2) * 0.8) * (1 - sand_w)
         # faces
         I = np.arange(nx * ny).reshape(ny, nx)
         a = I[:-1, :-1].ravel()
@@ -254,14 +244,22 @@ class Track:
         Zg = Z.reshape(ny, nx)
         gy, gx = np.gradient(Zg, CELL)
         steep = smoothstep(0.7, 1.3, np.hypot(gx, gy)).ravel()
-        rock = np.array(S.hexrgb("#9a8a78"))
-        col = col * (1 - steep[:, None]) + rock * steep[:, None]
+        rock_w = np.clip(steep + smoothstep(0.78, 0.9, n2) * smoothstep(8.0, 20.0, Z) * 0.6, 0, 1)
+        sand_w2 = sand_w * (1 - rock_w)
+        dirt_w2 = dirt_w * (1 - rock_w) * (1 - sand_w2)
+        grass_w = np.clip(1 - rock_w - sand_w2 - dirt_w2, 0, 1)
+        W = np.stack([grass_w, sand_w2, dirt_w2, rock_w], 1)
+        W = W / np.maximum(W.sum(1, keepdims=True), 1e-6)
         ob = C.mesh_from_arrays("Terrain", V, F)
         C.set_materials(ob, [m["terrain"]])
-        # alpha channel carries the sand weight (shader uses it for detail textures)
-        C.set_vertex_colors(ob, np.concatenate([col, sand_w[:, None] * (1 - steep[:, None])], 1))
-        uv = np.stack([X / 8.0, Y / 8.0], 1)
-        self._set_uv(ob, uv)
+        # splat weights: R grass, G sand, B dirt, A rock (shaders/track/terrain.gdshader)
+        C.set_vertex_colors(ob, W)
+        # UV2: x = cavity AO, y = macro tint noise
+        from scipy.ndimage import uniform_filter
+        blur = uniform_filter(Zg, size=7, mode="nearest")
+        cav = np.clip((blur - Zg) * 0.35, -0.6, 0.6).ravel()
+        ao = np.clip(1.0 - np.maximum(cav, 0) - shoulder * 0.12, 0.35, 1.0)
+        self._set_uv(ob, np.stack([ao, n2], 1), name="AO")
         C.shade_smooth(ob, True)
         self.terrain = (V, F, sand_w, nx, ny)
         self.edge_dist = edge
@@ -426,6 +424,98 @@ class Track:
         self._set_uv(ob, V[:, :2] / 20.0)
         return ob
 
+    def build_backdrop(self, m):
+        """Distant islands in the bay and a volcanic mountain range to the north."""
+        rng = np.random.default_rng(5)
+        objs = []
+        self.island_palms = []
+        islands = [(-520, -420, 90, 38), (-180, -560, 60, 26), (160, -470, 110, 55), (420, -330, 70, 30),
+                   (-760, -200, 80, 34), (640, -620, 140, 70)]
+        for k, (cx, cy, rad, hgt) in enumerate(islands):
+            nr, ns = 26, 64
+            V, cols, F = [], [], []
+            for r in range(nr + 1):
+                t = r / nr
+                for a in range(ns):
+                    ang = 2 * math.pi * a / ns
+                    wob = 1.0 + 0.18 * math.sin(ang * 3 + k) + 0.1 * math.sin(ang * 7 + k * 2)
+                    rr = rad * t * wob
+                    x, y = cx + rr * math.cos(ang), cy + rr * math.sin(ang)
+                    prof = (1 - t ** 2.2) ** 1.4
+                    z = hgt * prof - 4.0 * t + S.fbm(np.array([[x, y, 0.0]]), 1 / 30.0, 3, seed=40 + k)[0] * 6 * prof
+                    V.append((x, y, z))
+                    if z < 1.5:
+                        c = S.hexrgb("#f0d49a")
+                    elif prof < 0.55 and t > 0.5 and z < hgt * 0.4:
+                        c = S.hexrgb("#9a8a78")
+                    else:
+                        c = S.hexrgb("#4f9e34") if (a + r) % 5 else S.hexrgb("#3f8a2c")
+                    cols.append(c)
+                    if r > 3 and r < nr - 6 and rng.random() < 0.05 and z > 2.0:
+                        self.island_palms.append((x, y, z))
+            for r in range(nr):
+                for a in range(ns):
+                    i0 = r * ns + a
+                    i1 = r * ns + (a + 1) % ns
+                    F.append((i0, i1, i1 + ns, i0 + ns))
+            ob = C.mesh_from_arrays(f"Island{k}", np.array(V), np.array(F))
+            C.set_materials(ob, [m["backdrop"]])
+            C.set_vertex_colors(ob, np.array(cols))
+            C.shade_smooth(ob, True)
+            objs.append(ob)
+        # hinterland + mountain range north (continues the terrain's north edge)
+        nx_, ny_ = 120, 44
+        V, cols = [], []
+        for j in range(ny_ + 1):
+            for i in range(nx_ + 1):
+                x = -1300 + 2600 * i / nx_
+                y = BOUNDS[3] - 6 + 700 * (j / ny_) ** 1.3
+                n = S.fbm(np.array([[x, y, 0.0]]), 1 / 140.0, 4, seed=77)[0]
+                side = 1.0 - smoothstep(500, 1200, abs(x))
+                up = smoothstep(BOUNDS[3] + 40, 950, y)
+                z = 24 + (230 * up * (0.45 + 0.55 * n) + 18 * n) * (0.35 + 0.65 * side)
+                if j == 0:
+                    z = 18.0
+                V.append((x, y, z))
+                cols.append(S.hexrgb("#f4f6f8") if z > 215 else (S.hexrgb("#4f9a36") if z < 110 else S.hexrgb("#8a7f72")))
+        F = []
+        for j in range(ny_):
+            for i in range(nx_):
+                a0 = j * (nx_ + 1) + i
+                F.append((a0, a0 + 1, a0 + nx_ + 2, a0 + nx_ + 1))
+        ob = C.mesh_from_arrays("Mountains", np.array(V), np.array(F))
+        C.set_materials(ob, [m["backdrop"]])
+        C.set_vertex_colors(ob, np.array(cols))
+        C.shade_smooth(ob, True)
+        objs.append(ob)
+        # volcano cone (smoking in Godot)
+        vc = np.array([-120.0, 980.0])
+        V, cols, F = [], [], []
+        nr, ns = 20, 48
+        for r in range(nr + 1):
+            t = r / nr
+            for a in range(ns):
+                ang = 2 * math.pi * a / ns
+                rr = 40 + 300 * t
+                x, y = vc[0] + rr * math.cos(ang), vc[1] + rr * math.sin(ang)
+                z = 330 * (1 - t) ** 1.25 + 8 * math.sin(ang * 9) * (1 - t) - 20
+                if t < 0.04:
+                    z -= 25
+                V.append((x, y, z))
+                cols.append(S.hexrgb("#6b5d55") if t < 0.45 else S.hexrgb("#4f8a3a"))
+        for r in range(nr):
+            for a in range(ns):
+                i0 = r * ns + a
+                i1 = r * ns + (a + 1) % ns
+                F.append((i0, i0 + ns, i1 + ns, i1))
+        ob = C.mesh_from_arrays("Volcano", np.array(V), np.array(F))
+        C.set_materials(ob, [m["backdrop"]])
+        C.set_vertex_colors(ob, np.array(cols))
+        C.shade_smooth(ob, True)
+        objs.append(ob)
+        self.volcano_peak = (vc[0], vc[1], 300.0)
+        return C.join(objs, "Backdrop")
+
     def build_start(self, m):
         L = self.L
         i = L.index_at(L.start_s())
@@ -510,6 +600,11 @@ class Track:
         out["tunnel_lights"] = lamps
         out["waterfall_base"] = G(self.waterfall_base)
         out["decor"], out["scatter"] = self.decor()
+        rng = np.random.default_rng(9)
+        for (x, y, z) in getattr(self, "island_palms", []):
+            out["decor"].append({"prop": str(rng.choice(["palm_a", "palm_b", "palm_c"])), "p": G((x, y, z - 0.3)),
+                                 "yaw": float(rng.uniform(0, 360)), "s": float(rng.uniform(1.4, 2.2))})
+        out["volcano"] = G(self.volcano_peak)
         return out
 
     def decor(self):
@@ -587,6 +682,17 @@ class Track:
             p = L.pos[j, :2] + np.array([0, -1]) * rng.uniform(22, 48)
             prop = rng.choice(["umbrella", "umbrella", "beach_chair", "palm_a", "palm_b", "beach_ball", "surfboard_rack"])
             add(prop, p[0], p[1], None, rng.uniform(0.9, 1.15), clear=6)
+        # beach towels + umbrellas clusters, sandcastles, more boats and buoy lines
+        for k in range(70):
+            s_ = s0 - 200 + rng.uniform(0, 330)
+            j = L.index_at(s_)
+            p = L.pos[j, :2] + np.array([0, -1]) * rng.uniform(20, 60) + np.array([rng.uniform(-4, 4), 0])
+            add(str(rng.choice(["umbrella", "beach_chair", "umbrella", "beach_ball", "surfboard_rack", "flowers"])),
+                p[0], p[1], None, rng.uniform(0.9, 1.2), clear=6)
+        for k in range(10):
+            add("boat", rng.uniform(-300, 180), rng.uniform(-75, -40), None, rng.uniform(0.9, 1.3), z=0.0, clear=0)
+        for k in range(24):
+            add("buoy", -260 + k * 20 + rng.uniform(-2, 2), -58 + rng.uniform(-2, 2), None, 0.8, z=0.0, clear=0)
         for x in (-200, -120, -20, 60):
             add("beach_hut", x + rng.uniform(-8, 8), -30 + rng.uniform(-3, 3), 0.0, 1.0, clear=8)
         add("lifeguard_tower", -95, -40, 0.0, 1.0)
@@ -643,8 +749,30 @@ class Track:
         for ang in range(0, 360, 45):
             q = L.pos[g, :2] + 34 * np.array([math.cos(math.radians(ang)), math.sin(math.radians(ang))])
             add("cliff_b" if ang % 90 else "cliff_a", q[0], q[1], ang + 90, rng.uniform(0.8, 1.1), clear=4)
+        # roadside belts (CTR-style dense dressing right behind the barrier line)
+        start_lo, start_hi = s0 - 170, s0 + 120
+        for side in (-1, 1):
+            for belt, (d0, d1, step, pool, scl) in enumerate([
+                    (1.4, 3.2, 3.4, ["fern", "bush_a", "bush_b", "flowers", "banana_plant", "fern", "rock_c", "flowers"], (0.8, 1.35)),
+                    (5.5, 10.0, 7.5, ["jungle_tree", "palm_c", "banana_plant", "palm_a", "bush_a", "jungle_tree"], (0.85, 1.3))]):
+                s_ = 0.0
+                while s_ < Ln:
+                    i = L.index_at(s_)
+                    tg = L.tags[i]
+                    on_start = start_lo < s_ < start_hi or (start_lo + Ln) < s_
+                    if not ("bridge" in tg or "tunnel" in tg or "gap" in tg or on_start):
+                        r2 = L.right[i, :2] / np.linalg.norm(L.right[i, :2])
+                        off = L.width[i] / 2 + CURB_W + SHOULDER + rng.uniform(d0, d1)
+                        x, y = L.pos[i, :2] + r2 * off * side
+                        gz, sw = ground(x, y)
+                        if sw > 0.5:
+                            prop = rng.choice(["palm_a", "palm_b", "bush_b", "rock_flat", "flowers"] if belt else ["bush_b", "flowers", "rock_flat", "fern"])
+                        else:
+                            prop = rng.choice(pool)
+                        add(prop, x, y, None, rng.uniform(*scl), clear=SHOULDER + 0.8)
+                    s_ += step * rng.uniform(0.75, 1.25)
         # hills: sprinkle palms/trees/rocks in the open areas
-        for k in range(700):
+        for k in range(1500):
             x = rng.uniform(BOUNDS[0] + 10, BOUNDS[2] - 10)
             y = rng.uniform(-10, BOUNDS[3] - 10)
             gz, sw = ground(x, y)
@@ -657,16 +785,22 @@ class Track:
             add(prop, x, y, None, rng.uniform(0.8, 1.35), clear=16)
         # scatter (instanced with MultiMesh in Godot)
         scatter = {"grass_tuft": [], "flowers": []}
-        for k in range(26000):
-            x = rng.uniform(BOUNDS[0], BOUNDS[2])
-            y = rng.uniform(-5, BOUNDS[3])
+        for k in range(70000):
+            if k % 3:
+                # bias toward the road: pick a random track sample and offset
+                j = int(rng.integers(0, L.n))
+                r2 = L.right[j, :2] / np.linalg.norm(L.right[j, :2])
+                x, y = L.pos[j, :2] + r2 * rng.choice([-1, 1]) * (L.width[j] / 2 + CURB_W + rng.uniform(0.5, 35.0))
+            else:
+                x = rng.uniform(BOUNDS[0], BOUNDS[2])
+                y = rng.uniform(-5, BOUNDS[3])
             gz, sw = ground(x, y)
             if gz < 1.0 or sw > 0.4:
                 continue
             d, i = self.tree.query((x, y))
             if d < L.width[i] / 2 + CURB_W + 1.0 or d > 120:
                 continue
-            key = "flowers" if rng.random() < 0.06 else "grass_tuft"
+            key = "flowers" if rng.random() < 0.012 else "grass_tuft"
             scatter[key].append([round(v, 2) for v in G((x, y, gz))] + [round(float(rng.uniform(0, 6.283)), 2),
                                                                          round(float(rng.uniform(0.7, 1.4)), 2)])
         return items, scatter
@@ -678,6 +812,7 @@ def materials():
         planks=C.material("Planks", "#a0703f", rough=0.7),
         terrain=C.material("Terrain", "#ffffff", rough=0.95, use_vcol=True),
         tunnel=C.material("TunnelRock", "#ffffff", rough=0.9, use_vcol=True),
+        backdrop=C.material("Backdrop", "#ffffff", rough=0.9, use_vcol=True),
         waterfall=C.material("Waterfall", "#bff0ff", rough=0.1, alpha=0.8),
         water=C.material("Water", "#3fc6d8", rough=0.05, alpha=0.8),
         checker=C.material("Checker", "#ffffff", rough=0.6),
@@ -694,7 +829,7 @@ def build(out_root, preview=None):
     vis = C.empty("Visual", (0, 0, 0), parent=root)
     col = C.empty("Collision", (0, 0, 0), parent=root)
     parts = [T.build_road(m), T.build_terrain(m), T.build_tunnel(m), T.build_bridge(m), T.build_waterfall(m),
-             T.build_water(m), T.build_start(m)]
+             T.build_water(m), T.build_start(m), T.build_backdrop(m)]
     for o in parts:
         o.parent = vis
     cols = list(T.road_collision().values()) + list(T.terrain_collision().values()) + [T.walls()]

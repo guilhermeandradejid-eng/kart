@@ -6,6 +6,7 @@ extends RefCounted
 ## (track + props, vertex coloured). Materials are cached and shared.
 
 static var _cache := {}
+static var _tex := {}
 static var _noise: NoiseTexture2D
 static var _normal: NoiseTexture2D
 
@@ -40,6 +41,19 @@ static func normal_noise() -> NoiseTexture2D:
 		fn.fractal_octaves = 3
 		_normal.noise = fn
 	return _normal
+
+
+## assets/textures/<name>_{albedo,normal,mask} (tools/textures/gen_textures.py)
+static func tex(name: String, kind: String) -> Texture2D:
+	var key := name + "_" + kind
+	if not _tex.has(key):
+		var path := "res://assets/textures/%s.%s" % [key, "jpg" if kind == "albedo" else "png"]
+		_tex[key] = load(path) if ResourceLoader.exists(path) else null
+	return _tex[key]
+
+
+static func tex_params(prefix: String, name: String) -> Dictionary:
+	return {prefix + "_alb": tex(name, "albedo"), prefix + "_nrm": tex(name, "normal"), prefix + "_msk": tex(name, "mask")}
 
 
 static func base_name(m: Material) -> String:
@@ -90,6 +104,10 @@ static func stylized(params := {}) -> ShaderMaterial:
 	return shader_mat("res://shaders/stylized.gdshader", params)
 
 
+static func _detail(t: String, amount: float, scale: float) -> Dictionary:
+	return {"detail_alb": tex(t, "albedo"), "detail_nrm": tex(t, "normal"), "detail_tex": amount, "detail_tex_scale": scale}
+
+
 static func get_mat(set_name: String, n: String) -> Material:
 	var key := set_name + ":" + n
 	if _cache.has(key):
@@ -132,22 +150,26 @@ static func _build(set_name: String, n: String) -> Material:
 				"Strap": return std(Color("6b3d24"), 0.72, 0.0, {"rim": 0.15})
 		"world":
 			match n:
-				"Road": return shader_mat("res://shaders/track/road.gdshader", {"noise_tex": noise()})
-				"Planks": return shader_mat("res://shaders/track/planks.gdshader", {"noise_tex": noise()})
-				"Terrain": return shader_mat("res://shaders/track/terrain.gdshader", {"noise_tex": noise()})
+				"Road": return shader_mat("res://shaders/track/road.gdshader", tex_params("asphalt", "asphalt").merged({"noise_tex": noise()}))
+				"Planks": return shader_mat("res://shaders/track/planks.gdshader", {"wood_alb": tex("wood", "albedo"), "wood_nrm": tex("wood", "normal")})
+				"Terrain":
+					var p := {"noise_tex": noise()}
+					for t in ["grass", "sand", "dirt", "rock"]:
+						p.merge(tex_params(t, t))
+					return shader_mat("res://shaders/track/terrain.gdshader", p)
 				"Checker": return shader_mat("res://shaders/track/checker.gdshader")
 				"Water": return shader_mat("res://shaders/track/water.gdshader", {"noise_tex": noise(), "normal_tex": normal_noise()})
 				"Waterfall": return shader_mat("res://shaders/track/waterfall.gdshader", {"noise_tex": noise()})
-				"TunnelRock": return stylized({"roughness_v": 0.95, "detail": 0.18, "detail_scale": 0.8})
-				"Rock": return stylized({"roughness_v": 0.9, "detail": 0.14, "detail_scale": 0.9, "rim_v": 0.15})
+				"TunnelRock": return stylized(_detail("rock", 0.9, 0.18).merged({"roughness_v": 0.95, "detail": 0.1, "detail_scale": 0.8}))
+				"Rock": return stylized(_detail("rock", 0.85, 0.22).merged({"roughness_v": 0.9, "detail": 0.06, "detail_scale": 0.9, "rim_v": 0.15}))
 				"Leaf": return stylized({"roughness_v": 0.6, "detail": 0.06, "wind": 0.35, "rim_v": 0.25})
 				"Flower": return stylized({"roughness_v": 0.55, "detail": 0.04, "wind": 0.18, "rim_v": 0.3})
-				"Bark": return stylized({"roughness_v": 0.9, "detail": 0.15, "detail_scale": 3.0, "wind": 0.05})
-				"Wood": return stylized({"roughness_v": 0.8, "detail": 0.12, "detail_scale": 4.0})
+				"Bark": return stylized(_detail("wood", 0.6, 0.9).merged({"roughness_v": 0.9, "detail": 0.08, "detail_scale": 3.0, "wind": 0.05}))
+				"Wood": return stylized(_detail("wood", 0.7, 0.8).merged({"roughness_v": 0.8, "detail": 0.05, "detail_scale": 4.0}))
 				"Straw": return stylized({"roughness_v": 0.95, "detail": 0.2, "detail_scale": 6.0, "wind": 0.04})
 				"Fabric": return stylized({"roughness_v": 0.85, "detail": 0.03, "wind": 0.25})
 				"Rope": return stylized({"roughness_v": 0.95, "detail": 0.1, "detail_scale": 8.0})
-				"Sand": return stylized({"roughness_v": 0.95, "detail": 0.08})
+				"Sand": return stylized(_detail("sand", 0.6, 0.3).merged({"roughness_v": 0.95, "detail": 0.04}))
 				"Plastic": return stylized({"roughness_v": 0.45, "detail": 0.0, "rim_v": 0.2})
 				"Paint": return stylized({"roughness_v": 0.35, "detail": 0.0, "rim_v": 0.25})
 				"Metal": return stylized({"roughness_v": 0.3, "metallic_v": 0.8, "detail": 0.0})
@@ -157,6 +179,10 @@ static func _build(set_name: String, n: String) -> Material:
 				"Gold": return shader_mat("res://shaders/gold.gdshader")
 				"ItemBox": return shader_mat("res://shaders/item_box.gdshader")
 				"BoostPad": return shader_mat("res://shaders/boost_pad.gdshader")
+				"Backdrop":
+					var bd := std(Color.WHITE, 0.92, 0.0, {"vcol": true})
+					bd.cull_mode = BaseMaterial3D.CULL_DISABLED
+					return bd
 				"Crowd": return stylized({"roughness_v": 0.7, "detail": 0.0, "instance_tint": 1.0, "rim_v": 0.3, "bounce": 0.14})
 	return null
 

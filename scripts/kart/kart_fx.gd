@@ -33,6 +33,7 @@ var flames: Array[GPUParticles3D] = []
 var flame_cones: Array[MeshInstance3D] = []
 var puffs: Array[GPUParticles3D] = []
 var trail: GPUParticles3D
+var scrape: GPUParticles3D
 var _tier := 0
 
 
@@ -71,10 +72,11 @@ func _build_emitters() -> void:
 		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(g)
 		glows[key] = g
-		var sm := Fx.make_particles({"amount": 24, "lifetime": 1.1, "dir": Vector3(0, 1, 0.4), "spread": 30.0,
-			"vmin": 0.6, "vmax": 1.8, "gravity": Vector3(0, 1.2, 0), "damp": 1.5, "tex": Fx.tex_puff, "blend": "mix",
-			"size": Vector2(0.8, 0.8), "scale_curve": [[0.0, 0.4], [0.4, 1.0], [1.0, 1.6]], "spin_min": -60.0, "spin_max": 60.0,
-			"ramp": [[0.0, Color(1, 1, 1, 0.55)], [1.0, Color(1, 1, 1, 0.0)]]})
+		var sm := Fx.make_particles({"amount": 40, "lifetime": 1.6, "dir": Vector3(0, 1, 0.5), "spread": 40.0,
+			"vmin": 0.8, "vmax": 2.6, "gravity": Vector3(0, 1.4, 0), "damp": 2.2, "tex": Fx.tex_puff, "blend": "mix",
+			"size": Vector2(1.25, 1.25), "scale_curve": [[0.0, 0.35], [0.25, 1.0], [1.0, 2.3]], "spin_min": -50.0, "spin_max": 50.0,
+			"radius": 0.25, "angle_max": 360.0,
+			"ramp": [[0.0, Color(1, 1, 1, 0.0)], [0.08, Color(1, 1, 1, 0.75)], [0.5, Color(1, 1, 1, 0.45)], [1.0, Color(1, 1, 1, 0.0)]]})
 		sm.emitting = false
 		add_child(sm)
 		smoke[key] = sm
@@ -91,6 +93,12 @@ func _build_emitters() -> void:
 		"ramp": [[0.0, Color(1.0, 0.8, 0.3, 0.6)], [1.0, Color(1.0, 0.3, 0.1, 0.0)]]})
 	trail.emitting = false
 	add_child(trail)
+	scrape = Fx.make_particles({"amount": 50, "lifetime": 0.35, "dir": Vector3(0, 1, 1), "spread": 50.0, "vmin": 4.0,
+		"vmax": 9.0, "gravity": Vector3(0, -20, 0), "tex": Fx.tex_spark, "size": Vector2(0.05, 0.24), "align": true,
+		"radius": 0.15, "emission": 2.5,
+		"ramp": [[0.0, Color(1, 1, 0.8, 1)], [0.5, Color(1, 0.6, 0.15, 1)], [1.0, Color(1, 0.3, 0.05, 0)]]})
+	scrape.emitting = false
+	add_child(scrape)
 	_rebind_exhausts()
 
 
@@ -165,6 +173,8 @@ func _on_land(strength: float) -> void:
 
 func _on_boost(kind: String, _d: float) -> void:
 	_squash_v += 3.0
+	_flash = maxf(_flash, 0.45)
+	_flash_color = Color(1.0, 0.7, 0.25)
 	_pitch -= 0.06
 	if kind != "trick" and kind != "mini1":
 		kart.driver.fire("boost")
@@ -303,6 +313,8 @@ func _process(dt: float) -> void:
 	kart.driver.flash(_flash * 0.8)
 	model.set_ghost(0.45 if kart.invuln > 0.0 and fmod(_t, 0.16) < 0.08 and kart.spin_time <= 0.0 else 0.0)
 	_update_emitters(dt, sp)
+	if kart.is_player and kart.boost_time > 0.0:
+		Juice.trauma = maxf(Juice.trauma, 0.14)   # turbo rumble in the camera
 	_update_driver(dt)
 
 
@@ -329,7 +341,9 @@ func _update_emitters(dt: float, sp: float) -> void:
 		var sm: GPUParticles3D = smoke[key]
 		sm.global_position = pos + Vector3.UP * 0.1
 		var dusty := kart.is_offroad() and absf(kart.speed) > 6.0
-		sm.emitting = kart.grounded and (drifting_ground or kart.spin_time > 0.0 or (dusty and kart.surface == "sand"))
+		var braking := kart.grounded and kart.controls.brake > 0.6 and kart.speed > 9.0
+		sm.emitting = kart.grounded and (drifting_ground or braking or kart.spin_time > 0.0 or (dusty and kart.surface == "sand"))
+		sm.amount_ratio = 1.0 if (kart.drifting and _tier > 0) or kart.spin_time > 0.0 else 0.6
 		var surf_col: Color = SURFACE_DUST.get(kart.surface, Color.WHITE)
 		(sm.process_material as ParticleProcessMaterial).color = surf_col
 		var kc: GPUParticles3D = kick[key]
@@ -337,6 +351,16 @@ func _update_emitters(dt: float, sp: float) -> void:
 		kc.global_basis = kart.global_basis
 		kc.emitting = dusty
 		(kc.process_material as ParticleProcessMaterial).color = surf_col
+	_skids(drifting_ground)
+	var scraping := kart.is_on_wall() and absf(kart.speed) > 8.0
+	scrape.emitting = scraping
+	if scraping:
+		var wn := kart.get_wall_normal()
+		scrape.global_position = kart.global_position - wn * 0.75 + Vector3.UP * 0.35
+		scrape.global_basis = Basis.looking_at(-kart.forward(), Vector3.UP)
+		if kart.is_player:
+			Juice.shake(0.02)
+			Juice.rumble(0.25, 0.1, 0.05)
 	# boost flames
 	var boosting := kart.boost_time > 0.0
 	for i in flames.size():
@@ -350,6 +374,34 @@ func _update_emitters(dt: float, sp: float) -> void:
 	trail.emitting = boosting and sp > 0.6
 	if trail.emitting:
 		trail.global_position = kart.global_position + kart.global_basis.z * 1.2 + Vector3.UP * 0.4
+
+
+const SKID_COLORS := {"road": Color(0.06, 0.06, 0.07, 0.6), "wood": Color(0.12, 0.08, 0.05, 0.45),
+	"sand": Color(0.5, 0.38, 0.24, 0.6), "grass": Color(0.16, 0.3, 0.1, 0.45)}
+
+
+func _skids(drifting_ground: bool) -> void:
+	var sk := SkidMarks.instance
+	if sk == null:
+		return
+	var base := kart.get_instance_id() * 4
+	var braking := kart.controls.brake > 0.6 and kart.speed > 9.0
+	var offroad := kart.is_offroad() and absf(kart.speed) > 3.0
+	var rear := kart.grounded and (drifting_ground or braking or kart.spin_time > 0.0 or offroad or _bounce < -0.05)
+	var front := kart.grounded and (offroad or kart.spin_time > 0.0)
+	var col: Color = SKID_COLORS.get(kart.surface, SKID_COLORS.road)
+	if offroad and not drifting_ground:
+		col.a *= 0.6
+	var keys := ["rl", "rr", "fl", "fr"]
+	for i in 4:
+		var key: String = keys[i]
+		var on := rear if i < 2 else front
+		if on:
+			var w: Dictionary = model.wheels.get(key, {})
+			var width := 0.22 if w.is_empty() else 0.2 + float(w.radius) * 0.3
+			sk.mark(base + i, model.wheel_contact(key), kart.ground_normal, kart.global_basis.x, width, col)
+		else:
+			sk.lift(base + i)
 
 
 func _update_driver(dt: float) -> void:

@@ -1,8 +1,8 @@
 shader_type sky;
 // Sunny tropical sky: vertical gradient, soft sun + halo, stylised drifting
 // cumulus built from layered noise projected on a dome.
-uniform vec4 zenith : source_color = vec4(0.16, 0.45, 0.9, 1.0);
-uniform vec4 horizon : source_color = vec4(0.62, 0.86, 1.0, 1.0);
+uniform vec4 zenith : source_color = vec4(0.1, 0.38, 0.92, 1.0);
+uniform vec4 horizon : source_color = vec4(0.58, 0.85, 1.0, 1.0);
 uniform vec4 ground : source_color = vec4(0.32, 0.55, 0.62, 1.0);
 uniform vec4 sun_color : source_color = vec4(1.0, 0.93, 0.78, 1.0);
 uniform vec4 cloud_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);

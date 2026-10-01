@@ -45,6 +45,7 @@ func _ready() -> void:
 		e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		e.ambient_light_color = Color(0.35, 0.4, 0.6)
 		e.ambient_light_energy = 0.6
+	ColorGrade.apply(e, Game.settings.quality, "tropical" if garage else "sunset")
 	we.environment = e
 	add_child(we)
 	var sun := DirectionalLight3D.new()

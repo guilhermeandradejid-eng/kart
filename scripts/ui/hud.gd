@@ -27,6 +27,9 @@ var _roll_t := 0.0
 var _aberr := 0.0
 var _last_pos := 0
 var _items := ["pepper", "banana", "coconut"]
+var popup_label: Label
+var _combo := 0
+var _combo_t := 0.0
 
 
 func bind(r: RaceManager) -> void:
@@ -44,7 +47,8 @@ func bind(r: RaceManager) -> void:
 	player.shells_changed.connect(_on_shells)
 	player.bumped.connect(func(s, _p, _n, _o): _aberr = maxf(_aberr, clampf(s / 15.0, 0.2, 1.0)))
 	player.spun_out.connect(func(_k): _aberr = 1.0)
-	player.boosted.connect(func(_k, _d): _aberr = maxf(_aberr, 0.35))
+	player.boosted.connect(_on_boost)
+	player.trick.connect(func(_k): _popup("MANOBRA!", UIKit.TEAL, 1.0))
 
 
 func _build() -> void:
@@ -150,6 +154,13 @@ func _build() -> void:
 	wrong_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	wrong_label.visible = false
 	root.add_child(wrong_label)
+	popup_label = UIKit.label("", 84, true, UIKit.YELLOW, 16)
+	popup_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	popup_label.size = Vector2(1000, 120)
+	popup_label.position = Vector2(-500, -330)
+	popup_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	popup_label.modulate.a = 0.0
+	root.add_child(popup_label)
 	_build_pause()
 
 
@@ -211,6 +222,7 @@ func _process(dt: float) -> void:
 	time_label.text = UIKit.time_str(race.race_time)
 	var kmh := int(absf(player.speed) * 3.6 * 1.25)
 	speed_label.text = "%d km/h" % kmh
+	_combo_t = maxf(_combo_t - dt, 0.0)
 	# roulette
 	if player.item_rolling > 0.0:
 		_roll_t += dt
@@ -228,6 +240,36 @@ func _process(dt: float) -> void:
 	fx_mat.set_shader_parameter("aberration", _aberr)
 	var tint := Color(1.0, 0.55, 0.15, 0.07) if player.boost_kind.begins_with("mini3") else Color(1, 1, 1, 0)
 	fx_mat.set_shader_parameter("tint", tint)
+
+
+func _on_boost(kind: String, _d: float) -> void:
+	_aberr = maxf(_aberr, 0.35)
+	match kind:
+		"mini1", "mini2", "mini3":
+			_combo = _combo + 1 if _combo_t > 0.0 else 1
+			_combo_t = 3.5
+			var tier := int(kind.substr(4, 1))
+			var txt: String = ["TURBO!", "SUPER TURBO!", "ULTRA TURBO!"][tier - 1]
+			if _combo > 1:
+				txt += "  x%d" % _combo
+			_popup(txt, [UIKit.TEAL, UIKit.ORANGE, Color("d66bff")][tier - 1], 0.9 + 0.15 * tier)
+		"rocket":
+			_popup("LARGADA FOGUETE!", UIKit.YELLOW, 1.2)
+		"item":
+			_popup("PIMENTA!", UIKit.RED, 1.0)
+
+
+func _popup(text: String, color: Color, size := 1.0) -> void:
+	popup_label.text = text
+	popup_label.add_theme_color_override("font_color", color)
+	popup_label.add_theme_font_size_override("font_size", int(84 * size))
+	popup_label.pivot_offset = popup_label.size * 0.5
+	popup_label.modulate.a = 1.0
+	popup_label.rotation = randf_range(-0.06, 0.06)
+	UIKit.punch(popup_label, 1.7, 0.5)
+	var tw := create_tween()
+	tw.tween_interval(0.65)
+	tw.tween_property(popup_label, "modulate:a", 0.0, 0.3)
 
 
 func _on_wrong_way(on: bool) -> void:

@@ -9,9 +9,11 @@ enum Mode { CHASE, INTRO, ORBIT, FREE }
 
 var target: Kart
 var mode := Mode.CHASE
-var base_fov := 72.0
-var dist := 4.9
-var height := 1.95
+var base_fov := 70.0
+var dist := 3.35
+var height := 1.28
+var _roll := 0.0
+var _pull := 0.0
 var _pos := Vector3.ZERO
 var _off := Vector3.ZERO
 var _anchor_y := 0.0
@@ -82,8 +84,8 @@ func _desired() -> Vector3:
 	var k := target
 	var back := -_yaw_dir
 	var sp := k.speed_ratio()
-	var d := dist + sp * 1.4 + (0.6 if k.boost_time > 0.0 else 0.0)
-	var h := height + sp * 0.25
+	var d := dist + sp * 0.55 + _pull
+	var h := height + sp * 0.12 + _pull * 0.25
 	if k.controls.look_back:
 		back = -back
 		d *= 0.95
@@ -117,8 +119,12 @@ func _chase(dt: float) -> void:
 	var yaw_speed := 4.5 if k.grounded else 2.0
 	_yaw_dir = _yaw_dir.slerp(f, 1.0 - exp(-dt * yaw_speed)).normalized()
 	# swing wide on drifts (show the outside of the corner)
-	var swing_t := -k.drift_dir * 1.1 if k.drifting else 0.0
+	var swing_t := -k.drift_dir * 0.9 if k.drifting else 0.0
 	_swing = lerpf(_swing, swing_t, 1.0 - exp(-dt * 2.5))
+	# turbo pulls the camera back (CTR), drift/steer rolls it slightly (dutch)
+	_pull = lerpf(_pull, 0.75 if k.boost_time > 0.0 else 0.0, 1.0 - exp(-dt * (3.0 if k.boost_time > 0.0 else 1.8)))
+	var roll_t := -k.steer_smooth * 0.022 * k.speed_ratio() + (k.drift_dir * 0.045 if k.drifting else 0.0)
+	_roll = lerpf(_roll, roll_t, 1.0 - exp(-dt * 4.0))
 	var desired := _desired()
 	# wall / terrain avoidance
 	var look_from := k.global_position + Vector3.UP * 1.2
@@ -139,7 +145,7 @@ func _chase(dt: float) -> void:
 	_off += _vel * dt
 	_pos = anchor + _off
 	# vertical lag while airborne keeps jumps readable
-	var look_t := k.global_position + Vector3.UP * (1.05 + _dip * 0.3) + _yaw_dir * (3.0 + k.speed_ratio() * 2.0)
+	var look_t := k.global_position + Vector3.UP * (0.78 + _dip * 0.3) + _yaw_dir * (4.2 + k.speed_ratio() * 2.5)
 	if k.controls.look_back:
 		look_t = k.global_position + Vector3.UP * 1.1 - _yaw_dir * 3.0
 	_look = look_t
@@ -148,10 +154,11 @@ func _chase(dt: float) -> void:
 	_dip += _dip_v * dt
 	global_position = _pos + Vector3.UP * _dip * 0.35
 	look_at(_look, Vector3.UP)
+	rotate_object_local(Vector3.FORWARD, _roll)
 	# FOV: speed breathing + boost kick
 	_fov_kick_v += (-90.0 * _fov_kick - 11.0 * _fov_kick_v) * dt
 	_fov_kick += _fov_kick_v * dt
-	var target_fov := base_fov + k.speed_ratio() * 9.0 + (7.0 if k.boost_time > 0.0 else 0.0)
+	var target_fov := base_fov + k.speed_ratio() * 8.0 + (8.0 if k.boost_time > 0.0 else 0.0)
 	fov = lerpf(fov, target_fov, 1.0 - exp(-dt * 4.0)) + _fov_kick * 0.35
 	fov = clampf(fov, 55.0, 110.0)
 

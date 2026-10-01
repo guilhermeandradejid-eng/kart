@@ -289,6 +289,47 @@ func burst(kind: String, pos: Vector3, normal := Vector3.UP, color := Color.WHIT
 	p.finished.connect(p.queue_free)
 
 
+## Floating 3D text that pops, rises and fades (pickups, rewards).
+func float_text(text: String, pos: Vector3, color: Color, size := 1.0) -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var l := Label3D.new()
+	l.text = text
+	l.font = load("res://assets/fonts/LilitaOne.woff2")
+	l.font_size = int(96 * size)
+	l.outline_size = 22
+	l.modulate = color
+	l.outline_modulate = Color("121528")
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.pixel_size = 0.006
+	scene.add_child(l)
+	l.global_position = pos
+	l.scale = Vector3.ONE * 0.2
+	var tw := l.create_tween()
+	tw.tween_property(l, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(l, "global_position", pos + Vector3.UP * 1.6, 0.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "modulate:a", 0.0, 0.25)
+	tw.tween_callback(l.queue_free)
+
+
+func firework(pos: Vector3, color: Color) -> void:
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	var p := make_particles({"amount": 90, "lifetime": 1.6, "one_shot": true, "explosiveness": 1.0, "spread": 180.0,
+		"vmin": 9.0, "vmax": 14.0, "gravity": Vector3(0, -5, 0), "damp": 2.2, "tex": tex_star, "size": Vector2(0.6, 0.6),
+		"hue_var": 0.06, "emission": 3.0,
+		"ramp": [[0.0, Color(1, 1, 1, 1)], [0.2, Color(color, 1)], [0.8, Color(color, 0.8)], [1.0, Color(color, 0)]]})
+	p.visibility_aabb = AABB(Vector3(-30, -30, -30), Vector3(60, 60, 60))
+	scene.add_child(p)
+	p.global_position = pos
+	p.emitting = true
+	p.finished.connect(p.queue_free)
+	_flash(pos, color, 12.0, 0.5)
+
+
 func _flash(pos: Vector3, color: Color, energy: float, time: float) -> void:
 	var l := OmniLight3D.new()
 	l.light_color = color

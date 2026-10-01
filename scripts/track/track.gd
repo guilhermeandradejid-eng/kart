@@ -102,38 +102,52 @@ func _build_environment() -> void:
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.ambient_light_energy = 1.0
+	e.ambient_light_energy = 1.05
+	e.ambient_light_sky_contribution = 0.85
+	e.ambient_light_color = Color(0.62, 0.72, 0.85)
 	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
-	e.tonemap_mode = Environment.TONE_MAPPER_AGX
-	e.tonemap_exposure = 1.05
-	e.tonemap_white = 6.0
-	e.glow_enabled = true
-	e.glow_intensity = 0.55
-	e.glow_strength = 0.9
-	e.glow_bloom = 0.04
-	e.glow_hdr_threshold = 1.1
-	e.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
-	e.ssao_enabled = Game.settings.quality != "low"
-	e.ssao_radius = 1.6
-	e.ssao_intensity = 1.4
-	e.ssil_enabled = Game.settings.quality == "high"
+	var q: String = Game.settings.quality
+	ColorGrade.apply(e, q, "tropical")
+	# aerial perspective with sun scatter (warm toward the sun, blue away)
 	e.fog_enabled = true
 	e.fog_mode = Environment.FOG_MODE_DEPTH
-	e.fog_light_color = Color(0.68, 0.84, 0.98)
-	e.fog_depth_begin = 160.0
-	e.fog_depth_end = 900.0
-	e.fog_density = 0.6
-	e.fog_sky_affect = 0.25
-	e.adjustment_enabled = true
-	e.adjustment_saturation = 1.12
-	e.adjustment_contrast = 1.05
+	e.fog_light_color = Color(0.62, 0.8, 0.98)
+	e.fog_light_energy = 1.0
+	e.fog_sun_scatter = 0.25
+	e.fog_depth_begin = 180.0
+	e.fog_depth_end = 820.0
+	e.fog_depth_curve = 1.6
+	e.fog_density = 0.45
+	e.fog_sky_affect = 0.2
+	# volumetric light shafts through the jungle canopy / tunnel mouth
+	e.volumetric_fog_enabled = q == "high" or q == "ultra"
+	e.volumetric_fog_density = 0.0022
+	e.volumetric_fog_albedo = Color(1.0, 0.97, 0.9)
+	e.volumetric_fog_anisotropy = 0.55
+	e.volumetric_fog_length = 90.0
+	e.volumetric_fog_sky_affect = 0.0
+	e.volumetric_fog_ambient_inject = 0.15
 	env.environment = e
+	var ca := CameraAttributesPractical.new()
+	ca.dof_blur_far_enabled = Game.settings.quality != "low"
+	ca.dof_blur_far_distance = 190.0
+	ca.dof_blur_far_transition = 160.0
+	ca.dof_blur_amount = 0.06
+	ca.auto_exposure_enabled = false
+	env.camera_attributes = ca
+	var dbg: String = Game.get_meta("debug_fx", "")
+	if dbg.contains("novol"): e.volumetric_fog_enabled = false
+	if dbg.contains("nodof"): ca.dof_blur_far_enabled = false
+	if dbg.contains("nossil"): e.ssil_enabled = false
+	if dbg.contains("nossao"): e.ssao_enabled = false
+	if dbg.contains("noglow"): e.glow_enabled = false
 	add_child(env)
 	sun = DirectionalLight3D.new()
 	sun.name = "Sun"
-	sun.light_color = Color(1.0, 0.95, 0.86)
-	sun.light_energy = 1.35
-	sun.rotation_degrees = Vector3(-52, -38, 0)
+	sun.light_color = Color(1.0, 0.92, 0.8)
+	sun.light_energy = 1.55
+	sun.light_volumetric_fog_energy = 1.4
+	sun.rotation_degrees = Vector3(-40, -32, 0)
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_max_distance = 140.0
@@ -217,7 +231,19 @@ func _spawn_decor() -> void:
 				s *= 1.45
 			var b := Basis(Vector3.UP, deg_to_rad(float(d.yaw))).scaled(Vector3.ONE * s)
 			xforms.append(Transform3D(b, _v(d.p)))
-		_multimesh(root, path, xforms, prop in ["start_arch", "grandstand", "rock_arch", "cliff_a", "cliff_b", "beach_hut"], 0.0, mirror)
+		_multimesh(root, path, xforms, prop in ["start_arch", "grandstand", "rock_arch", "cliff_a", "cliff_b", "beach_hut"], 0.0, mirror,
+			0.18 if prop in ["boat", "buoy"] else 0.0)
+	# living flames on the tiki torches
+	if groups.has("tiki_torch"):
+		for d in groups["tiki_torch"]:
+			var f := Fx.make_particles({"amount": 14, "lifetime": 0.6, "dir": Vector3.UP, "spread": 12.0, "vmin": 0.6,
+				"vmax": 1.4, "gravity": Vector3(0, 1.5, 0), "tex": Fx.tex_soft, "size": Vector2(0.42, 0.42), "radius": 0.06,
+				"scale_curve": [[0.0, 1.0], [1.0, 0.2]], "emission": 2.5,
+				"ramp": [[0.0, Color(1.0, 0.95, 0.6, 1)], [0.4, Color(1.0, 0.55, 0.12, 0.9)], [1.0, Color(0.8, 0.2, 0.05, 0)]]})
+			f.visibility_range_end = 160.0
+			root.add_child(f)
+			f.global_position = _v(d.p) + Vector3.UP * (1.92 * float(d.s))
+			f.emitting = true
 	# crowds on every grandstand
 	if groups.has("grandstand") and ResourceLoader.exists("res://assets/models/props/crowd_member.glb"):
 		var crowd: Array[Transform3D] = []
@@ -245,35 +271,51 @@ func _spawn_decor() -> void:
 		_multimesh(root, path, xf, false, 180.0)
 
 
-func _multimesh(root: Node3D, path: String, xforms: Array[Transform3D], shadows: bool, vis_range := 0.0, mirror := false) -> void:
+func _multimesh(root: Node3D, path: String, xforms: Array[Transform3D], shadows: bool, vis_range := 0.0, mirror := false,
+		bob := 0.0) -> void:
+	## Instances are split into spatial cells so culling, LOD and visibility
+	## ranges work per cell instead of for the whole track at once.
 	var ps := load(path) as PackedScene
 	var inst := ps.instantiate()
 	Mats.apply(inst, "world")
+	var cell := 70.0 if vis_range > 0.0 and vis_range < 250.0 else 120.0
+	var cells := {}
+	for t in xforms:
+		var key := Vector2i(floori(t.origin.x / cell), floori(t.origin.z / cell))
+		cells.get_or_add(key, []).append(t)
+	if xforms.size() < 24:
+		cells = {Vector2i.ZERO: xforms}
 	for node in inst.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
 		var mesh := (_mirrored(mi.mesh) if mirror else mi.mesh.duplicate()) as Mesh
 		for i in mesh.get_surface_count():
 			var ov := mi.get_surface_override_material(i)
 			if ov:
+				if bob > 0.0 and ov is ShaderMaterial:
+					ov = ov.duplicate()
+					(ov as ShaderMaterial).set_shader_parameter("bob", bob)
 				mesh.surface_set_material(i, ov)
 		var local := _relative_xform(inst, mi)
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.use_custom_data = true
-		mm.mesh = mesh
-		mm.instance_count = xforms.size()
-		for k in xforms.size():
-			mm.set_instance_transform(k, xforms[k] * local)
-			mm.set_instance_custom_data(k, Color.from_hsv(randf(), randf_range(0.35, 0.7), 1.0, randf()))
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		mmi.name = path.get_file().get_basename() + "_" + mi.name
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows or vis_range == 0.0 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		if vis_range > 0.0:
-			mmi.visibility_range_end = vis_range
-			mmi.visibility_range_end_margin = 20.0
+		for key in cells:
+			var list: Array = cells[key]
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.use_custom_data = true
+			mm.mesh = mesh
+			mm.instance_count = list.size()
+			for k in list.size():
+				mm.set_instance_transform(k, (list[k] as Transform3D) * local)
+				mm.set_instance_custom_data(k, Color.from_hsv(randf(), randf_range(0.35, 0.7), 1.0, randf()))
+			var mmi := MultiMeshInstance3D.new()
+			mmi.multimesh = mm
+			mmi.name = "%s_%s_%d_%d" % [path.get_file().get_basename(), mi.name, key.x, key.y]
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows or vis_range == 0.0 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mmi.visibility_range_end = vis_range if vis_range > 0.0 else 520.0
+			mmi.visibility_range_end_margin = 25.0
 			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-		root.add_child(mmi)
+			if shadows and vis_range == 0.0 and path.contains("arch") or path.contains("cliff") or path.contains("grandstand"):
+				mmi.visibility_range_end = 0.0
+			root.add_child(mmi)
 	inst.free()
 
 

@@ -50,6 +50,7 @@ func _on_body(b: Node) -> void:
 	Fx.burst("pickup", global_position, Vector3.UP, Color(1, 0.85, 0.3), 1.0)
 	if k.is_player:
 		Audio.play("coin", -2.0, 1.0 + 0.04 * k.shells)
+		Fx.float_text("+1", global_position + Vector3.UP * 0.6, Color("ffd23f"))
 	visual.visible = false
 	get_tree().create_timer(9.0).timeout.connect(func():
 		active = true

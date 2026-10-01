@@ -7,8 +7,8 @@ uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap, repeat
 uniform sampler2D depth_tex : hint_depth_texture, repeat_disable, filter_nearest;
 uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap, repeat_enable;
-uniform vec4 shallow : source_color = vec4(0.25, 0.9, 0.85, 1.0);
-uniform vec4 deep : source_color = vec4(0.03, 0.33, 0.62, 1.0);
+uniform vec4 shallow : source_color = vec4(0.22, 0.95, 0.86, 1.0);
+uniform vec4 deep : source_color = vec4(0.02, 0.36, 0.7, 1.0);
 uniform vec4 foam_color : source_color = vec4(1.0);
 uniform float clarity = 0.28;
 uniform float wave_height = 0.12;
@@ -55,6 +55,10 @@ void fragment() {
 	ROUGHNESS = mix(0.04, 0.6, foam);
 	SPECULAR = 0.6;
 	METALLIC = 0.0;
-	EMISSION = col * 0.08 + vec3(0.6, 0.85, 1.0) * fres * 0.15;
+	// sun glitter: sparse twinkles where two drifting noise layers peak together
+	float g1 = texture(noise_tex, wpos.xz * 0.7 + vec2(TIME * 0.05, 0.0)).r;
+	float g2 = texture(noise_tex, wpos.xz * 1.1 - vec2(0.0, TIME * 0.06)).r;
+	float glitter = smoothstep(0.78, 0.86, g1 * g2 * 1.9) * (1.0 - foam) * (1.0 - t);
+	EMISSION = col * 0.08 + vec3(0.6, 0.85, 1.0) * fres * 0.15 + vec3(1.0, 0.95, 0.82) * glitter * 3.0;
 	ALPHA = 1.0;
 }

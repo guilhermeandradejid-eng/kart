@@ -15,9 +15,17 @@ uniform float wind_speed = 1.3;
 uniform bool use_vertex_color = true;
 uniform float emission_v = 0.0;
 uniform float instance_tint = 0.0;  // use INSTANCE_CUSTOM.rgb as tint (crowds)
-uniform float bounce = 0.0;         // crowd hop height (phase from INSTANCE_CUSTOM.a)
+uniform float bounce = 0.0;
+uniform float bob = 0.0;            // floating props: heave + rock with the waves         // crowd hop height (phase from INSTANCE_CUSTOM.a)
+
+uniform sampler2D detail_alb : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D detail_nrm : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float detail_tex = 0.0;      // 0 = off; >0 triplanar texture detail strength
+uniform float detail_tex_scale = 0.25;
+uniform float detail_nrm_strength = 0.6;
 
 varying vec3 wpos;
+varying vec3 wnrm;
 varying vec4 icustom;
 
 float hash(vec3 p) {
@@ -38,7 +46,15 @@ float vnoise(vec3 x) {
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	icustom = INSTANCE_CUSTOM;
+	if (bob > 0.0) {
+		vec3 o = MODEL_MATRIX[3].xyz;
+		float ph = TIME * 1.2 + o.x * 0.21 + o.z * 0.17;
+		VERTEX.y += sin(ph) * bob;
+		float roll = sin(ph * 0.8 + 1.3) * 0.08;
+		VERTEX.y += VERTEX.x * roll;
+	}
 	if (bounce > 0.0) {
 		float ph = TIME * (5.5 + INSTANCE_CUSTOM.a * 3.0) + INSTANCE_CUSTOM.a * 6.283;
 		float b = abs(sin(ph));
@@ -63,6 +79,19 @@ void fragment() {
 	if (instance_tint > 0.0) base *= mix(vec3(1.0), icustom.rgb, instance_tint);
 	float n = vnoise(wpos * detail_scale) * 0.6 + vnoise(wpos * detail_scale * 3.7) * 0.4;
 	base *= 1.0 + (n - 0.5) * 2.0 * detail;
+	if (detail_tex > 0.0) {
+		vec3 bw = pow(abs(wnrm), vec3(4.0));
+		bw /= (bw.x + bw.y + bw.z + 1e-5);
+		vec3 p = wpos * detail_tex_scale;
+		vec3 t = texture(detail_alb, p.zy).rgb * bw.x + texture(detail_alb, p.xz).rgb * bw.y + texture(detail_alb, p.xy).rgb * bw.z;
+		float lum = dot(t, vec3(0.333));
+		base *= mix(vec3(1.0), t / max(lum, 0.05) * lum * 1.9, detail_tex);
+		vec2 nx = texture(detail_nrm, p.zy).rg * 2.0 - 1.0;
+		vec2 ny = texture(detail_nrm, p.xz).rg * 2.0 - 1.0;
+		vec2 nz = texture(detail_nrm, p.xy).rg * 2.0 - 1.0;
+		vec3 pert = vec3(0.0, nx.y, nx.x) * bw.x + vec3(ny.x, 0.0, ny.y) * bw.y + vec3(nz.x, nz.y, 0.0) * bw.z;
+		NORMAL = normalize((VIEW_MATRIX * vec4(normalize(wnrm + pert * detail_nrm_strength * detail_tex), 0.0)).xyz);
+	}
 	ALBEDO = base;
 	ROUGHNESS = roughness_v;
 	METALLIC = metallic_v;

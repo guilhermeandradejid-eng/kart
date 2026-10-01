@@ -51,11 +51,18 @@ func _ready() -> void:
 	track.name = "Track"
 	add_child(track)
 	track.load_track(Game.track_id, with_decor)
+	var skids := SkidMarks.new()
+	skids.name = "SkidMarks"
+	add_child(skids)
 	_spawn_karts()
 	camera = ChaseCamera.new()
 	camera.name = "Camera"
 	add_child(camera)
 	camera.follow(player)
+	var life := AmbientLife.new()
+	life.name = "AmbientLife"
+	add_child(life)
+	life.setup(track, camera)
 	var hud_scene: GDScript = load("res://scripts/ui/hud.gd")
 	if hud_scene:
 		hud = hud_scene.new()
@@ -175,12 +182,23 @@ func _countdown_process(dt: float) -> void:
 		countdown_tick.emit(0)
 		Audio.play("countdown_go", 0.0)
 		Audio.play("crowd_cheer", -6.0)
+		_celebrate_start()
 		state = "race"
 		race_time = 0.0
 		for k in karts:
 			k.release()
 			k.driver.set_state("race")
 			progress[k].lap_start = 0.0
+
+
+func _celebrate_start() -> void:
+	var st := track.transform_at(track.data.start_s, 0.0, 0.0)
+	for side in [-1.0, 1.0]:
+		Fx.burst("confetti", st.origin + st.basis.x * side * 15.0 + Vector3.UP * 2.0, Vector3.UP, Color.WHITE, 1.2)
+	var cols := [Color("ff5fa2"), Color("ffd23f"), Color("5ee0ff"), Color("7dff7a")]
+	for i in 4:
+		get_tree().create_timer(0.15 + i * 0.35).timeout.connect(func():
+			Fx.firework(st.origin + st.basis.x * randf_range(-25, 25) - st.basis.z * randf_range(10, 40) + Vector3.UP * randf_range(28, 40), cols[i]))
 
 
 # ------------------------------------------------------------------ race loop
@@ -316,6 +334,10 @@ func _finish(k: Kart) -> void:
 		k.driver.set_state("victory" if place <= 3 else "lose")
 		Juice.slowmo(0.35, 0.9, 0.8)
 		Fx.burst("confetti", k.global_position + Vector3.UP * 2.0, Vector3.UP, Color.WHITE, 1.0)
+		for i in 6:
+			get_tree().create_timer(0.3 + i * 0.45, true, false, true).timeout.connect(func():
+				Fx.firework(k.global_position + Vector3(randf_range(-20, 20), randf_range(16, 28), randf_range(-20, 20)),
+					Color.from_hsv(randf(), 0.7, 1.0)))
 		Audio.play("finish", 0.0)
 		Audio.play("crowd_cheer", -2.0)
 		Audio.music("jingle_victory" if place <= 3 else "jingle_lose", 0.5)
