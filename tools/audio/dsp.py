@@ -775,18 +775,25 @@ def loop_crossfade(x: np.ndarray, loop_len: int, xfade: int) -> np.ndarray:
     return out
 
 
-def seam_ratio(x: np.ndarray, ctx: int = 2048) -> float:
-    """Loop-click detector: the jump from the last to the first sample divided by the
-    99th percentile of sample steps in the surrounding (wrapped) context.
-    <= ~1 means the wrap step is indistinguishable from the signal's own motion."""
+def seam_ratio(x: np.ndarray, win: int = 64, refs=None) -> float:
+    """Loop-click detector. Rotate the loop so the wrap point sits in the middle,
+    high-pass it (>7 kHz, where a discontinuity's energy shows up) and compare the
+    energy in a short window across the seam with the 99.5th percentile of the same
+    window energy everywhere else in the file. <= ~1: no click at the loop point.
+    For music, ``refs`` = sample positions of comparable moments (other downbeats);
+    the seam is then compared with the loudest of those instead."""
     x = x if x.ndim == 2 else x[None, :]
     worst = 0.0
     for c in x:
-        ring = np.concatenate([c[-ctx:], c[:ctx]])
-        d = np.abs(np.diff(ring))
-        jump = d[ctx - 1]
-        local = np.delete(d, ctx - 1)
-        worst = max(worst, jump / (np.percentile(local, 99) + 1e-9))
+        n = len(c)
+        y = filt(np.roll(c, n // 2), "hp", 7000.0, 0.7, order=2, circular=True)
+        e = uniform_filter1d(y ** 2, win, mode="wrap")
+        seam = e[n // 2 - win // 2: n // 2 + win // 2].max()
+        if refs is None:
+            ref = np.percentile(e, 99.5)
+        else:
+            ref = max(e[(np.arange(-win // 2, win // 2) + p + n // 2) % n].max() for p in refs)
+        worst = max(worst, seam / (ref + 1e-15))
     return float(worst)
 
 
@@ -812,7 +819,8 @@ def write_ogg(path: str, x: np.ndarray, quality: float = 6.0):
     try:
         wavfile.write(tmp, SR, data)
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", tmp, "-c:a", "libvorbis",
-                        "-q:a", str(quality), "-ar", str(SR), path], check=True)
+                        "-q:a", str(quality), "-ar", str(SR), "-fflags", "+bitexact", "-flags:a", "+bitexact",
+                        "-serial_offset", "1", path], check=True)
     finally:
         os.remove(tmp)
 

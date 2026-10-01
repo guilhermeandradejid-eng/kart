@@ -224,7 +224,7 @@ func _track_progress(_dt: float) -> void:
 						final_lap.emit()
 						message.emit("VOLTA FINAL!", "big")
 						Audio.play("final_lap", 0.0)
-						Audio.music_pitch(1.08)
+						Audio.music("music_race_final", 0.8)
 					elif k == player and p.lap > 1:
 						Audio.play("lap", -2.0)
 						message.emit("VOLTA %d" % p.lap, "lap")
@@ -308,9 +308,11 @@ func _finish(k: Kart) -> void:
 			if c is PlayerController:
 				(c as PlayerController).enabled = false
 				c.queue_free()
-		var ai := AIController.new()
-		k.add_child(ai)
-		ai.setup(k, track, self, 0.8, 7)
+		if k.get_node_or_null("AI") == null:
+			var ai := AIController.new()
+			ai.name = "AI"
+			k.add_child(ai)
+			ai.setup(k, track, self, 0.8, 7)
 		k.driver.set_state("victory" if place <= 3 else "lose")
 		Juice.slowmo(0.35, 0.9, 0.8)
 		Fx.burst("confetti", k.global_position + Vector3.UP * 2.0, Vector3.UP, Color.WHITE, 1.0)

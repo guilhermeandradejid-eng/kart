@@ -638,6 +638,17 @@ def jingle_lose(r):
     return fade(y, 0.0, 0.6)
 
 
+# Downbeat positions (samples) for the loop-seam check: the loop point is a downbeat,
+# so it is compared against the other downbeats (bar starts) of the same song.
+def _downbeats(bpm, bars):
+    return lambda n: [int(round(b * 4 * 60.0 / bpm * SR)) for b in range(1, bars)]
+
+
+music_race.downbeats = _downbeats(140.0, 40)
+music_race_final.downbeats = _downbeats(150.0, 32)
+music_menu.downbeats = _downbeats(100.0, 24)
+music_results.downbeats = _downbeats(128.0, 16)
+
 # =========================================================================== registry
 REGISTRY = {
     "music_race": (music_race, True, -14.5, "Race theme: tropical baiao/samba-rock, 140 BPM, G major (A-B-A'-B'-bridge)"),

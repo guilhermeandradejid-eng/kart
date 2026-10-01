@@ -39,5 +39,11 @@ func _physics_process(dt: float) -> void:
 			line += "| %s L%d r%.0f lat%+.1f/%.0f v%.0f st%+.1f %s%s%s " % [k.racer_name.substr(0, 3), pr.lap, pr.r, loc.lateral,
 				loc.half_width, k.speed, k.controls.steer, k.surface.substr(0, 1), "D" if k.drifting else "", "A" if not k.grounded else ""]
 		print(line)
-	if race.race_time >= t:
+	if race.race_time >= t or race.finish_order.size() == race.karts.size():
+		print("FINISH ORDER:")
+		for k in race.finish_order:
+			print("  ", k.racer_name, " ", UIKit.time_str(race.progress[k].time), " laps=", race.progress[k].lap_times.map(func(x): return snappedf(x, 0.1)))
+		for k in race.karts:
+			if not race.progress[k].finished:
+				print("  DNF ", k.racer_name, " lap=", race.progress[k].lap, " r=", snappedf(race.progress[k].r, 1))
 		get_tree().quit()

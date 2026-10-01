@@ -161,6 +161,12 @@ func _spawn_gameplay() -> void:
 		var sh := ShellPickup.new()
 		gp.add_child(sh)
 		sh.global_transform = Transform3D(_basis(s), _v(s.p))
+	if data.has("ramp"):
+		var ramp := JumpRamp.new()
+		var fr := frame_at(float(data.ramp.s) + 1.6)
+		ramp.width = fr.w
+		gp.add_child(ramp)
+		ramp.global_transform = transform_at(float(data.ramp.s) + 1.6, 0.0, 0.8)
 	var lights := Node3D.new()
 	lights.name = "TunnelLights"
 	gp.add_child(lights)

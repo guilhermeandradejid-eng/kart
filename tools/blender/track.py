@@ -61,7 +61,7 @@ class Track:
         r0 = self.L.ramp_s - 9.0
         r1 = self.L.ramp_s + 3.0
         t = np.clip((s_arr - r0) / (r1 - r0), 0, 1)
-        return 1.7 * t ** 2.2
+        return np.where(s_arr <= r1 + 0.5, 1.7 * t ** 2.2, 0.0)
 
     def road_point(self, i, o, crown=True):
         L = self.L
@@ -246,6 +246,9 @@ class Track:
         c = I[1:, 1:].ravel()
         dd_ = I[1:, :-1].ravel()
         F = np.stack([a, b, c, dd_], 1)
+        # punch a hole along the tunnel so the hill doesn't wall off the portals
+        hole = tunnel & (edge < 3.0)
+        F = F[~hole[F].any(axis=1)]
         V = np.stack([X, Y, Z], 1)
         # rock on steep slopes (vertex slope from grid gradient)
         Zg = Z.reshape(ny, nx)

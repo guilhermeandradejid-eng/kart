@@ -65,7 +65,7 @@ def build_one(kind, name, spec):
         "name": name + ".ogg", "kind": kind, "loop": loop, "desc": desc,
         "samples": y.shape[-1], "dec_samples": dec.shape[-1],
         "peak_db": pk, "lufs": dsp.lufs(dec), "mmax": dsp.momentary_max(dec), "dc": float(np.abs(dec.mean(axis=-1)).max()),
-        "seam": dsp.seam_ratio(dec) if loop else None,
+        "seam": (dsp.seam_ratio(dec, refs=getattr(fn, "downbeats", lambda n: None)(dec.shape[-1])) if loop else None),
         "channels": 2 if dec.ndim == 2 else 1, "secs": time.time() - t0,
         "bytes": os.path.getsize(path), "duration": ffprobe_duration(path),
     }

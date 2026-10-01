@@ -75,6 +75,7 @@ var ground_normal := Vector3.UP
 var surface := "road"
 var air_time := 0.0
 var launch_speed := 0.0
+var launched := false
 var drifting := false
 var drift_dir := 0
 var drift_charge := 0.0
@@ -417,7 +418,7 @@ func _integrate(dt: float) -> void:
 		velocity = f_g * speed + r_g * lateral + knock - n * 1.5
 		vertical = 0.0
 	else:
-		vertical -= GRAVITY * dt
+		vertical -= GRAVITY * (0.68 if launched else 1.0) * dt
 		var f_h := Vector3(fwd.x, 0.0, fwd.z).normalized()
 		var r_h := f_h.cross(Vector3.UP)
 		velocity = f_h * speed + r_h * lateral + Vector3.UP * vertical + knock
@@ -501,7 +502,21 @@ func _is_safe_spot() -> bool:
 	return absf(lateral) < 6.0 and ground_normal.dot(Vector3.UP) > 0.8
 
 
+## Dash ramp: guaranteed airtime (MK-style jump with a trick window).
+func launch(vy: float, min_speed: float) -> void:
+	if respawning > 0.0:
+		return
+	speed = maxf(speed, min_speed)
+	vertical = maxf(vertical, vy)
+	grounded = false
+	launched = true
+	trick_window = 0.7
+	tricked = false
+	global_position += Vector3.UP * 0.15
+
+
 func _on_land() -> void:
+	launched = false
 	var strength := maxf(-vertical, 0.0)
 	if air_time > 0.12 or strength > 2.0:
 		landed.emit(strength)

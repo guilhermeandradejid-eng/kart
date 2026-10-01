@@ -142,14 +142,14 @@ def beach_hut():
     V, F = L.lathe([(R * 0.97, 0.0), (R * 0.97, 0.16)], seg=6, cap=False)
     mb.add(V, F, color=WOOD_DARK)
     corners = [np.array([math.cos(a), math.sin(a)]) * (R - 0.22) for a in np.arange(6) * math.tau / 6]
-    apex, eave, Rr = 4.9, 2.45, 3.15
+    apex, eave, Rr = 5.3, 3.0, 3.0
     for i, c in enumerate(corners):
-        log(mb, (c[0], c[1], 0.1), (c[0], c[1], 2.75), 0.1, color="#9a6a40", seg=8)
+        log(mb, (c[0], c[1], 0.1), (c[0], c[1], 3.2), 0.1, color="#9a6a40", seg=8)
         n = corners[(i + 1) % 6]
-        log(mb, (c[0], c[1], 2.7), (n[0], n[1], 2.7), 0.07, color="#8a5c36", seg=6)
+        log(mb, (c[0], c[1], 3.1), (n[0], n[1], 3.1), 0.07, color="#8a5c36", seg=6)
         # rafter up to the apex (hidden mostly by the thatch, visible from below)
         z_at = apex - (apex - eave) / Rr * np.linalg.norm(c) - 0.14
-        log(mb, (c[0], c[1], 2.7), (c[0] * 0.1, c[1] * 0.1, apex - 0.35), 0.06, color="#8a5c36", seg=6)
+        log(mb, (c[0], c[1], 3.1), (c[0] * 0.1, c[1] * 0.1, apex - 0.35), 0.06, color="#8a5c36", seg=6)
         del z_at
     front = [0, 1, 2, 3]
     for k in range(3):
@@ -175,10 +175,10 @@ def beach_hut():
         mb_p.add(V, F, color=["#3ab0e0", "#e0342c", "#7ad04a", "#ffc12a"][int((x + 1) * 3) % 4])
     # sign over the front: two-tone board + white letters
     sign_y = R * math.sqrt(3) / 2 - 0.12
-    board(mb_p, (0, sign_y + 0.02, 2.4), (1.12, 0.03, 0.3), color="#ffe8a8")
-    board(mb_p, (0, sign_y + 0.05, 2.4), (1.02, 0.02, 0.24), color="#17a38e")
+    board(mb_p, (0, sign_y + 0.02, 2.72), (1.12, 0.03, 0.3), color="#ffe8a8")
+    board(mb_p, (0, sign_y + 0.05, 2.72), (1.02, 0.02, 0.24), color="#17a38e")
     parts = [mb.object("wood", L.mat("Wood"), angle=35), mb_p.object("paint", L.mat("Paint"), angle=35)]
-    parts.append(L.text_bold("sign_txt", "COCO", 0.36, 0.025, L.mat("Paint"), loc=(0, sign_y + 0.09, 2.38),
+    parts.append(L.text_bold("sign_txt", "COCO", 0.36, 0.025, L.mat("Paint"), loc=(0, sign_y + 0.09, 2.7),
                              rot=FACE_Y, color="#ffffff", bevel=0, res=2))
     parts.append(thatch_roof(R=Rr, eave=eave, apex=apex, tiers=3, seed=2))
     mb_s = L.MB()
@@ -188,11 +188,11 @@ def beach_hut():
         p = (a + (b - a) * t) * 1.03
         drinks.append(coconut_drink((p[0], p[1], 1.26), seed=k, mb=mb_s))
     hang = corners[4]
-    bunch = [S.Ellipsoid((0.13, 0.13, 0.15), color="#7a5a2a").at(hang[0] + dx, hang[1] + dy, 2.2 + dz)
+    bunch = [S.Ellipsoid((0.13, 0.13, 0.15), color="#7a5a2a").at(hang[0] + dx, hang[1] + dy, 2.6 + dz)
              for dx, dy, dz in ((0.16, 0.0, 0.0), (0.0, 0.16, -0.08), (0.12, 0.12, -0.24))]
-    parts.append(L.sdf_part("coconuts", S.Union(*drinks, *bunch), (-R - 0.4, -R - 0.4, 0.9), (R + 0.4, R + 0.4, 2.5),
+    parts.append(L.sdf_part("coconuts", S.Union(*drinks, *bunch), (-R - 0.4, -R - 0.4, 0.9), (R + 0.4, R + 0.4, 2.9),
                             0.012, 2400, L.mat("Wood")))
-    V, F = L.sweep(np.array([(hang[0] + 0.1, hang[1] + 0.08, 2.1), (hang[0] + 0.02, hang[1] + 0.02, 2.62)]), 0.015,
+    V, F = L.sweep(np.array([(hang[0] + 0.1, hang[1] + 0.08, 2.5), (hang[0] + 0.02, hang[1] + 0.02, 3.05)]), 0.015,
                    seg=5)
     mb_s.add(V, F, color="#d8c08a")
     parts.append(mb_s.object("straws", L.mat("Plastic")))
