@@ -175,8 +175,9 @@ def set_vertex_colors(ob, cols, name="Color"):
     if name in me.color_attributes:
         me.color_attributes.remove(me.color_attributes[name])
     attr = me.color_attributes.new(name=name, type="FLOAT_COLOR", domain="POINT")
+    cols = np.asarray(cols, dtype=np.float32)
     rgba = np.ones((len(me.vertices), 4), dtype=np.float32)
-    rgba[:, :3] = cols
+    rgba[:, :cols.shape[1]] = cols
     attr.data.foreach_set("color", rgba.ravel())
     me.color_attributes.active_color = attr
     try:
@@ -241,7 +242,9 @@ def join(objs, name):
 
 
 def sdf_object(name, node, lo, hi, voxel=0.01, target_faces=None, materials=None,
-               normals=True, smooth=True, collection=None, color_node=None, auto=True):
+               normals=True, smooth=True, collection=None, color_node=None, auto=True, alpha_fn=None):
+    """`alpha_fn(p)` -> (N,) fills vertex-colour alpha (wind weight for foliage,
+    flags and cloth: 0 = rigid, 1 = sways fully)."""
     """Polygonise an SDF tree into a Blender object with vertex colours,
     per-face materials (from node mat ids) and SDF-gradient normals."""
     if auto:
@@ -256,6 +259,8 @@ def sdf_object(name, node, lo, hi, voxel=0.01, target_faces=None, materials=None
     v = vertex_array(ob)
     cn = color_node or node
     _d, _m, cols = cn.attrs(v)
+    if alpha_fn is not None:
+        cols = np.concatenate([cols, np.clip(alpha_fn(v), 0, 1)[:, None]], axis=1)
     set_vertex_colors(ob, cols)
     if materials:
         set_materials(ob, materials)
