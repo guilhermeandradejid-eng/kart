@@ -17,9 +17,10 @@ var _started := false
 func _ready() -> void:
 	showroom = Showroom.new()
 	add_child(showroom)
-	showroom.cam_target = Vector3(1.4, 0.75, 0)
-	showroom.cam_dist = 5.2
-	showroom.cam_yaw = 0.9
+	showroom.cam_target = Vector3(-1.9, 0.8, 0.3)
+	showroom.cam_dist = 5.4
+	showroom.cam_yaw = PI - 0.75
+	showroom.spin = false
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	ui = Control.new()
@@ -191,7 +192,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			UIKit.pop_in(menu.get_child(i), 0.06 * i)
 		(menu.get_child(0) as Button).grab_focus()
 		create_tween().tween_property(logo, "scale", Vector2(0.62, 0.62), 0.5).set_trans(Tween.TRANS_BACK)
-		create_tween().tween_property(logo, "position", Vector2(-420, 20), 0.5).set_trans(Tween.TRANS_BACK)
+		create_tween().tween_property(logo, "position", Vector2(30, 10), 0.5).set_trans(Tween.TRANS_BACK)
 		get_viewport().set_input_as_handled()
 	elif e.is_action_pressed("ui_cancel") and (setup_panel.visible or options_panel.visible):
 		_back()

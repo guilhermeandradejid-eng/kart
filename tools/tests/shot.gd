@@ -15,6 +15,8 @@ var _next := 0.0
 var cam_mode := "chase"
 var follow := -1
 var scale := 1.0
+var warp := -1.0
+var _warped := false
 
 
 func _ready() -> void:
@@ -28,6 +30,7 @@ func _ready() -> void:
 			"cam": cam_mode = kv[1]
 			"kart": follow = int(kv[1])
 			"scale": scale = float(kv[1])
+			"warp": warp = float(kv[1])
 			"nodecor": pass
 	Engine.time_scale = scale
 	var ps := load("res://scenes/race.tscn") as PackedScene
@@ -44,6 +47,16 @@ func _process(dt: float) -> void:
 	if race and race.is_inside_tree() and follow >= 0 and race.camera and race.karts.size() > follow:
 		if race.camera.target != race.karts[follow]:
 			race.camera.follow(race.karts[follow])
+	if warp >= 0.0 and not _warped and race and race.is_inside_tree() and race.state == "race":
+		_warped = true
+		var k := race.player
+		k.global_transform = race.track.transform_at(race.track.data.start_s + warp, 0.0, 0.6)
+		k.speed = 26.0
+		race.progress[k].hint = race.track.locate(k.global_position).index
+		race.camera.follow(k, true)
+		_next = _elapsed + t
+	if warp >= 0.0 and not _warped:
+		return
 	if _elapsed >= _next:
 		var img := get_viewport().get_texture().get_image()
 		var p := "%s_%d.png" % [out, _taken]

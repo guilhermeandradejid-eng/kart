@@ -76,7 +76,7 @@ void fragment() {
 	ROUGHNESS = roughness_v;
 	METALLIC = 0.05;
 	CLEARCOAT = clearcoat_v;
-	CLEARCOAT_ROUGHNESS = 0.06;
+	CLEARCOAT_ROUGHNESS = 0.14;
 	RIM = 0.3;
 	RIM_TINT = 0.6;
 	if (ghost > 0.0) {

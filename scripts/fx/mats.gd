@@ -157,7 +157,7 @@ static func _build(set_name: String, n: String) -> Material:
 				"Gold": return shader_mat("res://shaders/gold.gdshader")
 				"ItemBox": return shader_mat("res://shaders/item_box.gdshader")
 				"BoostPad": return shader_mat("res://shaders/boost_pad.gdshader")
-				"Crowd": return stylized({"roughness_v": 0.7, "detail": 0.0, "instance_tint": 1.0, "rim_v": 0.3})
+				"Crowd": return stylized({"roughness_v": 0.7, "detail": 0.0, "instance_tint": 1.0, "rim_v": 0.3, "bounce": 0.14})
 	return null
 
 

@@ -222,7 +222,7 @@ func _process(dt: float) -> void:
 	var sp := player.speed_ratio()
 	var boosting := player.boost_time > 0.0
 	_aberr = move_toward(_aberr, 0.0, dt * 1.8)
-	fx_mat.set_shader_parameter("blur", lerpf(fx_mat.get_shader_parameter("blur"), (0.9 if boosting else 0.0) + clampf(sp - 0.9, 0, 1) * 0.6, 1.0 - exp(-dt * 6.0)))
+	fx_mat.set_shader_parameter("blur", lerpf(fx_mat.get_shader_parameter("blur"), (0.55 if boosting else 0.0) + clampf(sp - 0.95, 0, 1) * 0.4, 1.0 - exp(-dt * 6.0)))
 	fx_mat.set_shader_parameter("lines", lerpf(fx_mat.get_shader_parameter("lines"), (1.0 if boosting else clampf((sp - 0.95) * 3.0, 0, 0.5)), 1.0 - exp(-dt * 5.0)))
 	fx_mat.set_shader_parameter("aberration", _aberr)
 	var tint := Color(1.0, 0.55, 0.15, 0.07) if player.boost_kind.begins_with("mini3") else Color(1, 1, 1, 0)

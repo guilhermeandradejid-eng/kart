@@ -58,7 +58,7 @@ func _ready() -> void:
 		for side in [-1, 1]:
 			var spot := SpotLight3D.new()
 			spot.light_color = Color(0.55, 0.8, 1.0) if side < 0 else Color(1.0, 0.6, 0.35)
-			spot.light_energy = 18.0
+			spot.light_energy = 5.0
 			spot.spot_range = 12.0
 			spot.spot_angle = 35.0
 			spot.position = Vector3(side * 3.5, 4.0, 2.0)
@@ -94,13 +94,13 @@ func _ready() -> void:
 		var sp := PlaneMesh.new()
 		sp.size = Vector2(400, 200)
 		sea.mesh = sp
-		sea.position = Vector3(0, -0.28, -120)
+		sea.position = Vector3(0, -0.28, 130)
 		sea.material_override = Mats.std(Color("2bb3c9"), 0.08, 0.0, {"emit": Color("1a6f8a"), "emit_energy": 0.3})
 		add_child(sea)
-		for p in [[Vector3(-4.5, -0.3, -3.0), 1.1, "palm_a"], [Vector3(5.0, -0.3, -4.5), 1.3, "palm_b"],
-				[Vector3(-7.5, -0.3, -9.0), 1.0, "palm_c"], [Vector3(3.0, -0.3, -12.0), 1.2, "palm_a"],
-				[Vector3(-3.0, -0.3, 3.5), 0.9, "bush_a"], [Vector3(3.8, -0.3, 2.5), 0.7, "flowers"],
-				[Vector3(6.5, -0.3, 1.0), 1.0, "umbrella"], [Vector3(-6.0, -0.3, 0.5), 1.0, "beach_chair"]]:
+		for p in [[Vector3(-9.0, -0.3, 6.0), 1.1, "palm_a"], [Vector3(8.0, -0.3, 9.0), 1.3, "palm_b"],
+				[Vector3(-14.0, -0.3, 12.0), 1.0, "palm_c"], [Vector3(14.0, -0.3, 16.0), 1.2, "palm_a"],
+				[Vector3(-4.2, -0.3, 3.0), 0.9, "bush_a"], [Vector3(4.0, -0.3, 3.5), 0.7, "flowers"],
+				[Vector3(6.5, -0.3, -1.5), 1.0, "umbrella"], [Vector3(-6.5, -0.3, -1.0), 1.0, "beach_chair"]]:
 			var path := "res://assets/models/props/%s.glb" % p[2]
 			if ResourceLoader.exists(path):
 				var n: Node3D = (load(path) as PackedScene).instantiate()
@@ -110,6 +110,7 @@ func _ready() -> void:
 				n.rotation.y = randf() * TAU
 				add_child(n)
 	turntable = Node3D.new()
+	turntable.rotation.y = -0.55
 	add_child(turntable)
 	kart_model = KartModel.new(Game.player_config)
 	turntable.add_child(kart_model)

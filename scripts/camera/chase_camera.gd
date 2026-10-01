@@ -10,9 +10,11 @@ enum Mode { CHASE, INTRO, ORBIT, FREE }
 var target: Kart
 var mode := Mode.CHASE
 var base_fov := 72.0
-var dist := 5.6
-var height := 2.15
+var dist := 4.9
+var height := 1.95
 var _pos := Vector3.ZERO
+var _off := Vector3.ZERO
+var _anchor_y := 0.0
 var _vel := Vector3.ZERO
 var _look := Vector3.ZERO
 var _yaw_dir := Vector3.FORWARD
@@ -47,6 +49,9 @@ func follow(k: Kart, snap := true) -> void:
 	if snap:
 		_yaw_dir = k.forward()
 		_pos = _desired()
+		_off = _pos - k.global_position
+		_vel = Vector3.ZERO
+		_anchor_y = k.global_position.y
 		_look = k.global_position + Vector3.UP
 		global_position = _pos
 
@@ -123,16 +128,21 @@ func _chase(dt: float) -> void:
 	var hit := space.intersect_ray(q)
 	if not hit.is_empty() and not (hit.collider as Object).get_meta("surface", "") in ["wall"]:
 		desired = hit.position + (look_from - desired).normalized() * 0.4
-	# critically damped spring (frequency ~3.2 Hz)
-	var w := 7.5
-	var acc := (desired - _pos) * w * w - _vel * 2.0 * w
+	# critically damped spring on the OFFSET from the kart (no lag along the
+	# direction of travel, smooth swing when the heading changes)
+	var anchor := k.global_position
+	_anchor_y = lerpf(_anchor_y, anchor.y, 1.0 - exp(-dt * (12.0 if k.grounded else 3.5)))
+	anchor.y = _anchor_y
+	var w := 9.0
+	var acc := ((desired - k.global_position) - _off) * w * w - _vel * 2.0 * w
 	_vel += acc * dt
-	_pos += _vel * dt
+	_off += _vel * dt
+	_pos = anchor + _off
 	# vertical lag while airborne keeps jumps readable
 	var look_t := k.global_position + Vector3.UP * (1.05 + _dip * 0.3) + _yaw_dir * (3.0 + k.speed_ratio() * 2.0)
 	if k.controls.look_back:
 		look_t = k.global_position + Vector3.UP * 1.1 - _yaw_dir * 3.0
-	_look = _look.lerp(look_t, 1.0 - exp(-dt * 10.0))
+	_look = look_t
 	# landing dip spring
 	_dip_v += (-120.0 * _dip - 14.0 * _dip_v) * dt
 	_dip += _dip_v * dt

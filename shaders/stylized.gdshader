@@ -15,6 +15,7 @@ uniform float wind_speed = 1.3;
 uniform bool use_vertex_color = true;
 uniform float emission_v = 0.0;
 uniform float instance_tint = 0.0;  // use INSTANCE_CUSTOM.rgb as tint (crowds)
+uniform float bounce = 0.0;         // crowd hop height (phase from INSTANCE_CUSTOM.a)
 
 varying vec3 wpos;
 varying vec4 icustom;
@@ -38,6 +39,13 @@ float vnoise(vec3 x) {
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	icustom = INSTANCE_CUSTOM;
+	if (bounce > 0.0) {
+		float ph = TIME * (5.5 + INSTANCE_CUSTOM.a * 3.0) + INSTANCE_CUSTOM.a * 6.283;
+		float b = abs(sin(ph));
+		VERTEX.y += b * bounce;
+		VERTEX.xz *= 1.0 + (1.0 - b) * 0.08;
+		VERTEX.y *= 1.0 - (1.0 - b) * 0.06;
+	}
 	if (wind > 0.0) {
 		float w = COLOR.a;
 		float ph = dot(wpos.xz, vec2(0.11, 0.07)) + TIME * wind_speed;

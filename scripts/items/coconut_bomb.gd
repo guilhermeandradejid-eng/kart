@@ -28,6 +28,7 @@ func _ready() -> void:
 		mi.material_override = Mats.std(Color("6b4226"), 0.8)
 		visual = mi
 	add_child(visual)
+	visual.position.y = -0.3
 	var spark := Fx.make_particles({"amount": 20, "lifetime": 0.3, "dir": Vector3.UP, "spread": 60.0, "vmin": 1.0,
 		"vmax": 3.0, "gravity": Vector3(0, -3, 0), "tex": Fx.tex_star, "size": Vector2(0.18, 0.18),
 		"ramp": [[0.0, Color(1, 1, 0.6, 1)], [1.0, Color(1, 0.4, 0.1, 0)]]})

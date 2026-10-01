@@ -200,22 +200,39 @@ func _spawn_gameplay() -> void:
 func _spawn_decor() -> void:
 	var groups := {}
 	for d in data.decor:
-		groups.get_or_add(d.prop, []).append(d)
+		groups.get_or_add(d.prop + ("@flip" if d.get("flip", false) else ""), []).append(d)
 	var root := Node3D.new()
 	root.name = "Decor"
 	add_child(root)
-	for prop in groups:
+	for key in groups:
+		var prop: String = key.split("@")[0]
+		var mirror: bool = key.ends_with("@flip")
 		var path := "res://assets/models/props/%s.glb" % prop
 		if not ResourceLoader.exists(path):
 			continue
 		var xforms: Array[Transform3D] = []
-		for d in groups[prop]:
+		for d in groups[key]:
 			var s: float = d.s
 			if prop == "start_arch":
 				s *= 1.45
-			var b := Basis(Vector3.UP, deg_to_rad(-float(d.yaw))).scaled(Vector3.ONE * s)
+			var b := Basis(Vector3.UP, deg_to_rad(float(d.yaw))).scaled(Vector3.ONE * s)
 			xforms.append(Transform3D(b, _v(d.p)))
-		_multimesh(root, path, xforms, prop in ["start_arch", "grandstand", "rock_arch", "cliff_a", "cliff_b", "beach_hut"])
+		_multimesh(root, path, xforms, prop in ["start_arch", "grandstand", "rock_arch", "cliff_a", "cliff_b", "beach_hut"], 0.0, mirror)
+	# crowds on every grandstand
+	if groups.has("grandstand") and ResourceLoader.exists("res://assets/models/props/crowd_member.glb"):
+		var crowd: Array[Transform3D] = []
+		for d in groups["grandstand"]:
+			var gb := Basis(Vector3.UP, deg_to_rad(float(d.yaw))).scaled(Vector3.ONE * float(d.s))
+			var gt := Transform3D(gb, _v(d.p))
+			for row in 6:
+				var x := -6.7
+				while x <= 6.7:
+					if randf() < 0.78:
+						var local := Transform3D(Basis(Vector3.UP, PI + randf_range(-0.3, 0.3)).scaled(Vector3.ONE * randf_range(0.8, 1.0)),
+							Vector3(x + randf_range(-0.08, 0.08), 0.78 + 0.45 * row, 0.8 * row + 0.5))
+						crowd.append(gt * local)
+					x += 0.54
+		_multimesh(root, "res://assets/models/props/crowd_member.glb", crowd, false, 260.0)
 	var sc: Dictionary = data.get("scatter", {})
 	for prop in sc:
 		var path := "res://assets/models/props/%s.glb" % prop
@@ -228,13 +245,13 @@ func _spawn_decor() -> void:
 		_multimesh(root, path, xf, false, 180.0)
 
 
-func _multimesh(root: Node3D, path: String, xforms: Array[Transform3D], shadows: bool, vis_range := 0.0) -> void:
+func _multimesh(root: Node3D, path: String, xforms: Array[Transform3D], shadows: bool, vis_range := 0.0, mirror := false) -> void:
 	var ps := load(path) as PackedScene
 	var inst := ps.instantiate()
 	Mats.apply(inst, "world")
 	for node in inst.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
-		var mesh := mi.mesh.duplicate() as Mesh
+		var mesh := (_mirrored(mi.mesh) if mirror else mi.mesh.duplicate()) as Mesh
 		for i in mesh.get_surface_count():
 			var ov := mi.get_surface_override_material(i)
 			if ov:
@@ -247,7 +264,7 @@ func _multimesh(root: Node3D, path: String, xforms: Array[Transform3D], shadows:
 		mm.instance_count = xforms.size()
 		for k in xforms.size():
 			mm.set_instance_transform(k, xforms[k] * local)
-			mm.set_instance_custom_data(k, Color.from_hsv(randf(), 0.5, 1.0))
+			mm.set_instance_custom_data(k, Color.from_hsv(randf(), randf_range(0.35, 0.7), 1.0, randf()))
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.name = path.get_file().get_basename() + "_" + mi.name
@@ -258,6 +275,33 @@ func _multimesh(root: Node3D, path: String, xforms: Array[Transform3D], shadows:
 			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		root.add_child(mmi)
 	inst.free()
+
+
+## X-mirrored copy with flipped winding (so culling stays correct).
+func _mirrored(src: Mesh) -> ArrayMesh:
+	var out := ArrayMesh.new()
+	for i in src.get_surface_count():
+		var arr := src.surface_get_arrays(i)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		for k in v.size():
+			v[k].x = -v[k].x
+		arr[Mesh.ARRAY_VERTEX] = v
+		if arr[Mesh.ARRAY_NORMAL] != null:
+			var nn: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+			for k in nn.size():
+				nn[k].x = -nn[k].x
+			arr[Mesh.ARRAY_NORMAL] = nn
+		arr[Mesh.ARRAY_TANGENT] = null
+		if arr[Mesh.ARRAY_INDEX] != null:
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+			for k in range(0, idx.size(), 3):
+				var t := idx[k + 1]
+				idx[k + 1] = idx[k + 2]
+				idx[k + 2] = t
+			arr[Mesh.ARRAY_INDEX] = idx
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		out.surface_set_material(i, src.surface_get_material(i))
+	return out
 
 
 func _relative_xform(root: Node, node: Node3D) -> Transform3D:

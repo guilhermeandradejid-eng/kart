@@ -26,7 +26,7 @@ func _ready() -> void:
 	showroom.cam_target = Vector3(-0.9, 0.55, 0)
 	showroom.cam_dist = 4.4
 	showroom.cam_height = 1.2
-	showroom.cam_yaw = 0.75
+	showroom.cam_yaw = PI - 0.4
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	ui = Control.new()

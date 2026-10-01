@@ -552,9 +552,13 @@ class Track:
                 off = L.width[i] / 2 + CURB_W + dist + rng.uniform(-jitter, jitter)
                 x, y = L.pos[i, :2] + r2 * off * side
                 f = L.fwd[i]
-                yaw = math.degrees(math.atan2(f[0], f[1]))  # Blender yaw facing along track
-                if yaw_mode == "face":
+                yaw = math.degrees(math.atan2(-f[0], f[1]))  # Blender yaw: local +Y -> along track
+                if yaw_mode == "face":       # local +Y faces the road
                     yaw = yaw + (90 if side > 0 else -90)
+                elif yaw_mode == "along":    # local +X (length) runs along the road
+                    yaw = yaw - 90
+                elif yaw_mode == "oncoming": # faces approaching drivers
+                    yaw = yaw + 180
                 elif yaw_mode == "random":
                     yaw = None
                 add(prop, x, y, yaw, rng.uniform(*scale), clear=clear)
@@ -569,10 +573,10 @@ class Track:
             j = L.index_at(s0 + off)
             p = L.pos[j, :2] - r2 * (L.width[j] / 2 + CURB_W + SHOULDER + 3.0)
             f = L.fwd[j]
-            add("grandstand", p[0], p[1], math.degrees(math.atan2(f[0], f[1])) + 180 + 90, 1.0, clear=2)
+            add("grandstand", p[0], p[1], math.degrees(math.atan2(-f[0], f[1])) - 90, 1.0, clear=2)
         add_arch = self.road_point(i, 0)
         items.append({"prop": "start_arch", "p": G(add_arch - np.array([0, 0, 0.1])),
-                      "yaw": float(math.degrees(math.atan2(L.fwd[i, 0], L.fwd[i, 1]))), "s": 1.0})
+                      "yaw": float(math.degrees(math.atan2(-L.fwd[i, 0], L.fwd[i, 1]))), "s": 1.0})
         along("feather_banner", s0 - 90, s0 + 80, 12, -1, 1.8, 0.3, yaw_mode="face", clear=1.5)
         along("flag_pole", s0 - 60, s0 + 60, 18, 1, 2.5, 0.3, clear=1.5)
         along("barrier", s0 - 150, s0 + 110, 2.1, 1, 0.9, 0.0, yaw_mode="along", clear=0.5)
@@ -599,13 +603,17 @@ class Track:
         for s_c in np.linspace(0, Ln, 120, endpoint=False):
             i = L.index_at(s_c)
             if abs(L.curv[i]) > 0.02 and "tunnel" not in L.tags[i] and "bridge" not in L.tags[i]:
-                side = -1 if L.curv[i] > 0 else 1   # outside of the turn
+                side = 1 if L.curv[i] > 0 else -1   # outside of the turn (left turn -> right side)
                 along("tire_stack", s_c, s_c + 3, 3, side, SHOULDER + 0.6, 0.1, (0.95, 1.05), "random", clear=1)
         for s_c in np.linspace(0, Ln, 60, endpoint=False):
             i = L.index_at(s_c)
             if abs(L.curv[i]) > 0.026 and "tunnel" not in L.tags[i]:
-                side = -1 if L.curv[i] > 0 else 1
-                along("sign_chevron", s_c, s_c + 1, 1, side, SHOULDER - 0.8, 0.0, yaw_mode="face", clear=1)
+                side = 1 if L.curv[i] > 0 else -1
+                n0 = len(items)
+                along("sign_chevron", s_c, s_c + 1, 1, side, SHOULDER - 0.8, 0.0, yaw_mode="oncoming", clear=1)
+                if L.curv[i] < 0:
+                    for it in items[n0:]:
+                        it["flip"] = True   # arrows point right for right turns
         # --- jungle: dense vegetation, rocks and fences on the climb and descent
         jungle = [(s0 + 500, s0 + 700), (s0 + 820, s0 + 1100)]
         for a, b in jungle:
@@ -623,7 +631,7 @@ class Track:
         for s_edge, facing in ((self.L.features["tunnel"][0][0] - 2, 0), (self.L.features["tunnel"][0][1] + 2, 180)):
             i = L.index_at(s_edge)
             f = L.fwd[i]
-            yaw = math.degrees(math.atan2(f[0], f[1])) + facing
+            yaw = math.degrees(math.atan2(-f[0], f[1])) + facing
             p = self.road_point(i, 0) - np.array([0, 0, 0.6])
             items.append({"prop": "rock_arch", "p": G(p), "yaw": float(yaw), "s": 1.05})
             for side in (-1, 1):
