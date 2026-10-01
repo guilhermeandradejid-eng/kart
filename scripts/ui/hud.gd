@@ -33,6 +33,7 @@ func bind(r: RaceManager) -> void:
 	race = r
 	player = r.player
 	layer = 10
+	process_mode = Node.PROCESS_MODE_ALWAYS   # so ESC can un-pause
 	_build()
 	r.countdown_tick.connect(_on_countdown)
 	r.message.connect(_on_message)
