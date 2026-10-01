@@ -17,6 +17,8 @@ var follow := -1
 var scale := 1.0
 var warp := -1.0
 var _warped := false
+var trace := false
+var _tr := 0.0
 
 
 func _ready() -> void:
@@ -34,6 +36,7 @@ func _ready() -> void:
 			"quality": Game.settings.quality = kv[1]
 			"fx": Game.set_meta("debug_fx", kv[1])
 			"nodecor": pass
+			"trace": trace = true
 	Engine.time_scale = scale
 	Engine.max_physics_steps_per_frame = 90   # software rendering: advance the sim in big steps
 	var ps := load("res://scenes/race.tscn") as PackedScene
@@ -55,11 +58,18 @@ func _process(dt: float) -> void:
 		var k := race.player
 		k.global_transform = race.track.transform_at(race.track.data.start_s + warp, 0.0, 0.6)
 		k.speed = 26.0
+		k.velocity = k.forward() * 26.0
 		race.progress[k].hint = race.track.locate(k.global_position).index
 		race.camera.follow(k, true)
 		_next = _elapsed + t
 	if warp >= 0.0 and not _warped:
 		return
+	if trace and race and race.camera and _elapsed >= _tr:
+		_tr = _elapsed + 0.1
+		var c := race.camera
+		var k := race.player
+		var rel := c.global_transform.affine_inverse() * (k.global_position + Vector3.UP * 0.5)
+		print("t=%.2f rel=%s v=%s spd=%.1f g=%s resp=%.2f vis=%s" % [_elapsed, rel, k.velocity, k.speed, k.grounded, k.respawning, k.is_visible_in_tree()])
 	if _elapsed >= _next:
 		var img := get_viewport().get_texture().get_image()
 		var p := "%s_%d.png" % [out, _taken]

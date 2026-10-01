@@ -126,6 +126,12 @@ func _build() -> void:
 	speed_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	speed_label.position = Vector2(-250, -52)
 	root.add_child(speed_label)
+	var tm := TurboMeter.new()
+	tm.kart = player
+	tm.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	tm.position = Vector2(-560, -170)
+	tm.size = Vector2(260, 140)
+	root.add_child(tm)
 	# minimap (bottom left)
 	minimap = Minimap.new()
 	minimap.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)

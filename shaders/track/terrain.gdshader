@@ -24,6 +24,7 @@ uniform float normal_strength = 0.9;
 uniform vec4 grass_tint_a : source_color = vec4(1.0, 1.0, 0.86, 1.0);
 uniform vec4 grass_tint_b : source_color = vec4(0.82, 1.0, 0.9, 1.0);
 uniform float water_level = 0.0;
+uniform int debug_view = 0;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -49,7 +50,7 @@ void sample_top(sampler2D alb, sampler2D nrm, sampler2D msk, vec2 uv, float macr
 }
 
 void fragment() {
-	vec4 w = COLOR;
+	vec4 w = clamp(COLOR, vec4(0.0), vec4(1.0));
 	vec2 uv = wpos.xz * scale;
 	float dist = length(wpos - CAMERA_POSITION_WORLD);
 	float macro = texture(noise_tex, uv * 0.031).r;
@@ -76,7 +77,7 @@ void fragment() {
 
 	// height blend
 	vec4 hw = w * (vec4(gh, sh, dh, rh) * 0.6 + 0.4);
-	hw = pow(hw + 1e-4, vec4(6.0));
+	hw = pow(max(hw, vec4(0.0)) + 1e-4, vec4(6.0));
 	hw /= (hw.r + hw.g + hw.b + hw.a + 1e-5);
 
 	vec3 albedo = ga * hw.r + sa * hw.g + da * hw.b + ra * hw.a;
@@ -97,4 +98,18 @@ void fragment() {
 	SPECULAR = 0.35 + wet * 0.3;
 	AO = UV.x;
 	AO_LIGHT_AFFECT = 0.4;
+	if (debug_view > 0) {
+		vec3 d = vec3(0.0);
+		if (debug_view == 1) d = albedo;
+		if (debug_view == 2) d = n_world * 0.5 + 0.5;
+		if (debug_view == 3) d = hw.rgb + vec3(hw.a);
+		if (debug_view == 4) d = vec3(UV.x, rough, w.a);
+		bool bad = any(isnan(d)) || any(isinf(d));
+		ALBEDO = vec3(0.0);
+		ROUGHNESS = 1.0;
+		SPECULAR = 0.0;
+		AO = 1.0;
+		NORMAL = VIEW_MATRIX[1].xyz;
+		EMISSION = bad ? vec3(4.0, 0.0, 4.0) : d;
+	}
 }

@@ -54,8 +54,9 @@ func follow(k: Kart, snap := true) -> void:
 		_off = _pos - k.global_position
 		_vel = Vector3.ZERO
 		_anchor_y = k.global_position.y
-		_look = k.global_position + Vector3.UP
+		_look = k.global_position + Vector3.UP * 0.78 + _yaw_dir * 4.2
 		global_position = _pos
+		look_at(_look, Vector3.UP)
 
 
 func _on_boost(kind: String, _d: float) -> void:

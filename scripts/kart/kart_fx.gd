@@ -377,7 +377,7 @@ func _update_emitters(dt: float, sp: float) -> void:
 
 
 const SKID_COLORS := {"road": Color(0.06, 0.06, 0.07, 0.6), "wood": Color(0.12, 0.08, 0.05, 0.45),
-	"sand": Color(0.5, 0.38, 0.24, 0.6), "grass": Color(0.16, 0.3, 0.1, 0.45)}
+	"sand": Color(0.5, 0.38, 0.24, 0.6), "grass": Color(0.2, 0.15, 0.08, 0.5)}
 
 
 func _skids(drifting_ground: bool) -> void:

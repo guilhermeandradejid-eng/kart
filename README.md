@@ -47,12 +47,19 @@ modelos, animações, pista e áudio **gerados por código** (Blender via `bpy` 
   tela de resultados.
 
 **Game feel / juice**
+- **Câmera estilo CTR**: bem próxima e baixa atrás do kart, recua no turbo, inclina (*dutch*) no
+  drift, abre para fora da curva e olha para onde a pista vai.
 - Suspensão com molas, *squash & stretch* do kart (hop, pouso, boost), inclinação nas curvas,
   vibração do motor, câmera com mola no offset, FOV que respira com a velocidade e "chuta" no boost,
   mergulho de câmera no pouso, *screen shake* por trauma, *hit-stop*, vibração do controle.
 - VFX procedurais: faíscas de drift por nível + brilho na roda, fumaça/areia/grama por superfície,
   chamas e cone de fogo no escapamento, rastro no boost, estrelas no impacto, explosão, splash, confete,
   caixa de item estilhaçando, linhas de velocidade, blur radial, aberração cromática nos impactos.
+- **Marcas de pneu** persistentes (asfalto, madeira, areia e grama com cores próprias, somem aos
+  poucos), fumaça densa no drift e na freada, faíscas raspando na parede.
+- HUD com **medidor de turbo** (carga do drift por nível + chama do boost), textos "TURBO! / SUPER
+  TURBO! / ULTRA TURBO! x3" em combo, "+1" flutuante nas conchas, fogos e confete na largada e na
+  chegada.
 - Áudio procedural: motor em 3 camadas (rpm), derrapagem, vento, 50+ efeitos, vozes cartunescas do
   Guará e 6 músicas brasileiras (baião/samba-rock na corrida, bossa nova no menu).
 
@@ -77,9 +84,20 @@ modelos, animações, pista e áudio **gerados por código** (Blender via `bpy` 
 - Reta na orla com arco inflável, arquibancadas com torcida animada → curva T1 subindo o promontório →
   chicane → ponte de madeira sobre o rio → hairpin inclinado → túnel no penhasco com tochas → esses na
   selva → boost + **salto sobre o cânion da cachoeira** → curva final inclinada de volta à praia.
-- Terreno esculpido, mar com shader de profundidade/espuma, céu com nuvens, 48 props (palmeiras,
-  árvores, pedras, quiosques, barcos, boias, barreiras, placas, torcida...), 15 mil tufos de grama
-  instanciados.
+- Terreno com **texturas procedurais sem emenda** (grama, areia, terra, rocha — albedo, normal e
+  máscara de altura geradas em `tools/textures/gen_textures.py`), mistura por altura, rocha triplanar
+  nas encostas, areia molhada na beira d'água; asfalto texturizado com sujeira de pneu e zebras gastas.
+- ~3 mil props (palmeiras, árvores, bananeiras, samambaias, flores, pedras, quiosques, barcos e boias
+  que balançam na água, tochas com fogo, placas de curva, pilhas de pneus...), 43 mil tufos de grama,
+  torcida pulando nas arquibancadas; ilhas, montanhas e um vulcão fumegando no horizonte.
+- **Vida ambiente:** gaivotas circulando, borboletas na selva, peixes saltando na baía, folhas caindo,
+  balões de ar quente.
+
+**Visual / pós-processamento** (`scripts/fx/color_grade.gd`)
+- **Color grading** por LUT 3D gerada em código (look "tropical" saturado, sombras levemente
+  turquesa e altas luzes douradas; "sunset" no menu), tonemapping AgX, bloom suave.
+- **SSAO** + SSIL, névoa volumétrica e neblina de distância com dispersão do sol, profundidade de
+  campo no horizonte; SSR e SDFGI no preset *ultra*.
 
 ## Os 12 princípios de animação no Guará
 
@@ -102,11 +120,11 @@ modelos, animações, pista e áudio **gerados por código** (Blender via `bpy` 
 
 | | |
 |---|---|
+| ![Selva](docs/img/jungle.jpg) | ![Ponte](docs/img/bridge.jpg) |
+| ![Orla](docs/img/beach.jpg) | ![Salto do cânion](docs/img/jump.jpg) |
 | ![Menu](docs/img/menu.jpg) | ![Garagem](docs/img/garage.jpg) |
-| ![Orla](docs/img/beach.jpg) | ![Variantes de kart](docs/img/kart_variants.jpg) |
+| ![Variantes de kart](docs/img/kart_variants.jpg) | ![Props](docs/img/props.jpg) |
 | ![Guará](docs/img/guara_model.jpg) | ![Poses do Guará](docs/img/guara_poses.jpg) |
-
-![Props](docs/img/props.jpg)
 
 ## Estrutura
 
@@ -123,6 +141,7 @@ shaders/        pintura do kart, pelagem, estrada, terreno, água, céu, boost p
 tools/
   blender/      pipeline procedural (bpy): tt/ (SDF, core, rig, anim, render), kart_parts, guara,
                 guara_anim, track_layout, track, props*
+  textures/     texturas procedurais periódicas (numpy)
   audio/        síntese procedural de SFX e música (numpy)
   tests/        simulação headless, screenshots, sondas
 ```
@@ -133,6 +152,7 @@ tools/
 pip install bpy==5.2.2 numpy scipy scikit-image pillow   # Python 3.13 (Blender 5.2 como módulo)
 python tools/blender/build.py karts guara track props     # modelos -> assets/models, data/tracks
 python tools/blender/build.py kart_review guara_review     # renders de revisão em tools/blender/out
+python tools/textures/gen_textures.py                     # texturas -> assets/textures
 python tools/audio/build_audio.py                         # áudio -> assets/audio
 godot --headless --path . --import                        # reimportar no Godot
 ```
@@ -145,6 +165,10 @@ godot --headless --path . res://tools/tests/sim.tscn -- --t=220 --every=20
 # screenshots (precisa de GPU/Vulkan ou xvfb + lavapipe)
 godot --path . res://tools/tests/shot.tscn -- --t=6 --shots=3 --out=/tmp/race [--warp=500]
 godot --path . res://tools/tests/driver_shot.tscn -- --shots=race:0.8,victory:1.6 --out=/tmp/guara
+# depuração de renderização da pista (liga/desliga camadas, --fx=nodof,novol,nossao,noglow...)
+godot --path . res://tools/tests/track_debug.tscn -- --s=470 --yaw=90 --views=0,1,2 --out=/tmp/dbg
+# regressão completa
+tools/tests/run_tests.sh
 ```
 
 ## Próximos passos
